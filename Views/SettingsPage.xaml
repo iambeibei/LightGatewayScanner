@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:LightGatewayScanner.ViewModels"
+             x:Class="LightGatewayScanner.Views.SettingsPage"
+             x:DataType="vm:SettingsViewModel"
+             Title="设置"
+             BackgroundColor="#F5F6F8">
+
+    <Grid RowDefinitions="*,Auto" RowSpacing="0">
+
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout Spacing="12" Padding="12,12,12,4">
+
+                <!-- 接口配置 -->
+                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="接口配置" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                        <Label Text="SetPn 接口地址" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding SetPnUrl}" Keyboard="Url" FontSize="14" />
+                        <Label Text="超时时间（秒，1~120）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding TimeoutSecondsText}" Keyboard="Numeric" FontSize="14" />
+                        <Label Text="成功业务码（响应体 code 字段，逗号分隔）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding ApiSuccessCodes}" FontSize="14" Placeholder="0,1,200" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="信任自签 HTTPS 证书" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding AllowInvalidCertificate}" />
+                        </Grid>
+                        <Button Text="测试接口连通性" Command="{Binding TestApiCommand}"
+                                BackgroundColor="#E6F1FB" TextColor="#185FA5" CornerRadius="8" FontSize="13" Padding="12,10" />
+                        <Label Text="{Binding ApiTestResult}" FontSize="12" TextColor="#5F5E5A"
+                               IsVisible="{Binding ApiTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Redis 配置 -->
+                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Redis 在线校验配置" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                        <Label Text="连接串" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding RedisConnectionString}" FontSize="14" />
+                        <Label Text="在线列表 Key" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding OnlineListKey}" FontSize="14" />
+                        <Label Text="查询超时（毫秒，500~60000）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding RedisTimeoutMsText}" Keyboard="Numeric" FontSize="14" />
+                        <Label Text="在线列表缓存秒数（0 = 不缓存）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding OnlineCacheSecondsText}" Keyboard="Numeric" FontSize="14" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="Redis 不可用时允许强制提交" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding AllowSubmitWhenRedisUnavailable}" />
+                        </Grid>
+                        <Button Text="测试 Redis 连接" Command="{Binding TestRedisCommand}"
+                                BackgroundColor="#EEEDFE" TextColor="#534AB7" CornerRadius="8" FontSize="13" Padding="12,10" />
+                        <Label Text="{Binding RedisTestResult}" FontSize="12" TextColor="#5F5E5A"
+                               IsVisible="{Binding RedisTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 扫码规则 -->
+                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="扫码识别规则" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                        <Label Text="储能设备字符串前缀（多个用逗号分隔）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding PnPrefixes}" FontSize="14" Placeholder="例如 PN" />
+                        <Label Text="{Binding PrefixHint}" FontSize="11" TextColor="#6B6B76" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="前缀匹配忽略大小写" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding IgnorePnCase}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="前缀后必须为纯数字（防误判）" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding RequireNumericSuffix}" />
+                        </Grid>
+                        <Label Text="网关 ID 校验正则（未命中前缀的码）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding GatewayPattern}" FontSize="13" />
+                        <Label Text="同一条码去重窗口（毫秒）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding ScanDedupMsText}" Keyboard="Numeric" FontSize="14" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="强制先扫网关 ID" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding RequireScanOrder}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="同类型重复扫码时覆盖" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding OverwriteDuplicate}" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 行为 -->
+                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="行为" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="两个码扫满后自动提交" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding AutoSubmit}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="写入成功后自动清空" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding AutoResetAfterSuccess}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="声音与震动反馈" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding SoundAndVibration}" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 维护 -->
+                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="维护" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                            <Button Grid.Column="0" Text="导出配置" Command="{Binding ExportCommand}"
+                                    FontSize="12" Padding="6,10" BackgroundColor="#F1EFE8" TextColor="#5F5E5A" CornerRadius="8" />
+                            <Button Grid.Column="1" Text="导入配置" Command="{Binding ImportCommand}"
+                                    FontSize="12" Padding="6,10" BackgroundColor="#F1EFE8" TextColor="#5F5E5A" CornerRadius="8" />
+                            <Button Grid.Column="2" Text="查看日志" Command="{Binding ViewLogCommand}"
+                                    FontSize="12" Padding="6,10" BackgroundColor="#F1EFE8" TextColor="#5F5E5A" CornerRadius="8" />
+                        </Grid>
+                        <Button Text="恢复默认配置" Command="{Binding ResetCommand}"
+                                FontSize="13" Padding="12,10" BackgroundColor="#FCEBEB" TextColor="#A32D2D" CornerRadius="8" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- 底部保存栏 -->
+        <VerticalStackLayout Grid.Row="1" Spacing="6" Padding="12,8,12,12" BackgroundColor="White">
+            <Label Text="{Binding StatusMessage}" FontSize="12" TextColor="{Binding StatusColor}"
+                   IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmptyConverter}}" />
+            <Button Text="保存配置" Command="{Binding SaveCommand}"
+                    BackgroundColor="#512BD4" TextColor="White" CornerRadius="10"
+                    Padding="12,16" FontSize="15" FontAttributes="Bold" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

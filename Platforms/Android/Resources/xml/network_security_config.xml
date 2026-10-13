@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  内网服务使用自签 HTTPS 证书（https://192.168.40.116:7088）。
+  Android 7+ 默认不信任应用自带的用户证书，这里显式加入 user 信任锚：
+  现场在手机上安装服务器证书后即可正常访问。
+  若 APP 设置里开启了"信任自签证书"，代码层面还会做一次证书回调放行。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
