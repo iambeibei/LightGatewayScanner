@@ -35,20 +35,37 @@ public partial class ScanPage : ContentPage
             return;
         }
 
-        var status = await Permissions.CheckStatusAsync<Permissions.Camera>();
-        if (status != PermissionStatus.Granted)
-            status = await Permissions.RequestAsync<Permissions.Camera>();
-
-        _cameraPermissionGranted = status == PermissionStatus.Granted;
-
-        if (!_cameraPermissionGranted)
+        if (!await EnsureCameraPermissionAsync())
         {
+            // 权限没拿到就必须把状态置回"关闭"，否则按钮文字会说"关闭相机"，画面却是一片黑
             _viewModel.CameraVisible = false;
+            _viewModel.StatusText = "相机权限未授予，扫码不可用，点『打开相机』可重新授权";
+            _viewModel.StatusColor = Color.FromArgb("#854F0B");
             await DisplayAlertAsync("需要相机权限", "请在系统设置中授予相机权限，否则只能使用手动输入。", "知道了");
             return;
         }
 
         ApplyCameraState();
+    }
+
+    /// <summary>
+    /// 检查并在需要时申请相机权限。返回 true 表示已获得权限。
+    /// </summary>
+    private async Task<bool> EnsureCameraPermissionAsync()
+    {
+        try
+        {
+            var status = await Permissions.CheckStatusAsync<Permissions.Camera>();
+            if (status != PermissionStatus.Granted)
+                status = await Permissions.RequestAsync<Permissions.Camera>();
+            _cameraPermissionGranted = status == PermissionStatus.Granted;
+        }
+        catch (Exception)
+        {
+            _cameraPermissionGranted = false;
+        }
+
+        return _cameraPermissionGranted;
     }
 
     /// <summary>
@@ -71,11 +88,17 @@ public partial class ScanPage : ContentPage
         if (_viewModel.CameraVisible && _cameraPermissionGranted)
         {
             if (_camera is null) BuildCamera();
+            return;
         }
-        else
+
+        if (_viewModel.CameraVisible && !_cameraPermissionGranted)
         {
-            ReleaseCamera();
+            // 权限没到位：状态拨回"关闭"，保证按钮文字与画面一致（不再显示一片黑）
+            _viewModel.CameraVisible = false;
+            return;
         }
+
+        ReleaseCamera();
     }
 
     private void BuildCamera()
@@ -106,6 +129,8 @@ public partial class ScanPage : ContentPage
         {
             _camera = null;
             CameraHost.Content = null;
+            // 相机没真正起来就把状态拨回"关闭"，按钮文字必须和现实一致
+            if (_viewModel.CameraVisible) _viewModel.CameraVisible = false;
         }
     }
 
@@ -159,10 +184,30 @@ public partial class ScanPage : ContentPage
         }
     }
 
-    private void OnCameraToggleClicked(object? sender, EventArgs e)
+    private async void OnCameraToggleClicked(object? sender, EventArgs e)
     {
         // 按钮文字由 CameraButtonText 跟随 CameraVisible 自动更新，
-        // 不在这里再手写一次，避免状态与文字脱钩
+        // 不在这里再手写一次，避免状态与文字脱钩。
+        // 另外：准备"打开"但权限还没拿到时，先补一次授权，
+        // 否则会把文字翻成"关闭相机"而画面仍是黑的。
+        if (!_viewModel.CameraVisible && !_cameraPermissionGranted)
+        {
+            if (!await EnsureCameraPermissionAsync())
+            {
+                var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+                if (page is not null)
+                    await page.DisplayAlertAsync(
+                        "需要相机权限",
+                        "未获得相机权限，无法打开相机。可到系统设置里授予权限后重试。",
+                        "知道了");
+                _viewModel.CameraVisible = false;
+                return;
+            }
+        }
+
         _viewModel.ToggleCameraCommand.Execute(null);
+
+        // 兜底：权限是刚刚才拿到的场景，属性可能没变化，这里再同步一次
+        ApplyCameraState();
     }
 }

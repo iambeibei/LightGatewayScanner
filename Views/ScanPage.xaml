@@ -8,7 +8,7 @@
              Title="扫码写入"
              BackgroundColor="#F5F6F8">
 
-    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto"
+    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto"
           RowSpacing="10"
           Padding="12,10,12,14">
 
@@ -16,7 +16,7 @@
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
             <VerticalStackLayout Spacing="2">
                 <Label Text="储能设备 PN 写入" FontSize="18" FontAttributes="Bold" TextColor="#1B1B1F" />
-                <Label Text="连续扫描：网关 ID + 储能设备 PN" FontSize="12" TextColor="#6B6B76" />
+                <Label Text="{Binding Subtitle}" FontSize="12" TextColor="#6B6B76" />
             </VerticalStackLayout>
             <Button Grid.Column="1"
                     Text="设置"
@@ -169,7 +169,8 @@
                     Padding="6,14" FontSize="13" BackgroundColor="#512BD4" TextColor="White" CornerRadius="10" />
         </Grid>
 
-        <Button Grid.Row="4" Text="{Binding CameraButtonText}" Clicked="OnCameraToggleClicked"
+        <!-- 相机关闭时，用底部独立一行的按钮重新打开预览（相机面板收起后里面没有入口） -->
+        <Button Grid.Row="5" Text="{Binding CameraButtonText}" Clicked="OnCameraToggleClicked"
                 IsVisible="{Binding CameraVisible, Converter={StaticResource InvertedBoolConverter}}"
                 Padding="16,10" FontSize="13" BackgroundColor="#E6F1FB" TextColor="#185FA5" CornerRadius="10" />
     </Grid>

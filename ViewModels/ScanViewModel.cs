@@ -66,6 +66,9 @@ public partial class ScanViewModel : ObservableObject
     public string GatewayDisplay => string.IsNullOrWhiteSpace(GatewayId) ? "未扫描" : GatewayId;
     public string PnDisplay => string.IsNullOrWhiteSpace(Pn) ? "未扫描" : Pn;
 
+    /// <summary>副标题（带构建标记，便于确认手机装的是哪一版）</summary>
+    public string Subtitle => $"连续扫描：网关 ID + 储能设备 PN · 构建 {AppConfig.BuildTag}";
+
     // ---------- 命令 ----------
 
     [RelayCommand]

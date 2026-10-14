@@ -7,16 +7,31 @@ namespace LightGatewayScanner.Models;
 /// </summary>
 public sealed class AppConfig
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
+
+    // ---------- 出厂默认值（同时用于旧版配置迁移） ----------
+    /// <summary>写入接口地址（2026-10-14 起迁到 192.168.1.65:11282，HTTP 明文内网）</summary>
+    public const string DefaultSetPnUrl = "http://192.168.1.65:11282/AgingService/SetPn";
+
+    /// <summary>v1 时代的旧接口地址，仅用于把老配置迁移过来</summary>
+    public const string LegacySetPnUrl = "https://192.168.40.116:7088/AgingService/SetPn";
+
+    public const string DefaultApiSuccessCodes = "0,1,200";
+
+    /// <summary>v1 时代的旧默认成功码（不认 code=1，会把成功判成失败）</summary>
+    public const string LegacyApiSuccessCodes = "0,200";
+
+    /// <summary>构建标记，显示在设置页，用于确认手机装的是哪一版</summary>
+    public const string BuildTag = "2026-10-14.1";
 
     public int ConfigVersion { get; set; } = CurrentVersion;
 
     // ---------- 接口配置 ----------
-    public string SetPnUrl { get; set; } = "https://192.168.40.116:7088/AgingService/SetPn";
+    public string SetPnUrl { get; set; } = DefaultSetPnUrl;
     public int TimeoutSeconds { get; set; } = 10;
     public bool AllowInvalidCertificate { get; set; } = true;
     /// <summary>响应体里的"成功业务码"，逗号分隔。默认 0,1,200；留空则按 0/1/200 处理</summary>
-    public string ApiSuccessCodes { get; set; } = "0,1,200";
+    public string ApiSuccessCodes { get; set; } = DefaultApiSuccessCodes;
 
     // ---------- Redis 配置 ----------
     public string RedisConnectionString { get; set; } = "192.168.1.65:6379,password=123456,defaultDatabase=0";

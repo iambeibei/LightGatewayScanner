@@ -64,6 +64,9 @@ public partial class SettingsViewModel : ObservableObject
         "储能设备 PN = 字符串部分 + 数字部分，例如 PN 为 PN123ABC 时这里填 PN。" +
         "多个前缀用逗号分隔。扫到的码命中前缀即为储能设备 PN，未命中的按网关 ID 规则处理。";
 
+    /// <summary>构建标记，显示在设置页底部，用于确认手机装的是哪一版</summary>
+    public string VersionText => $"扫码写入 APP · 构建 {AppConfig.BuildTag}";
+
     // ---------- 命令 ----------
 
     [RelayCommand]

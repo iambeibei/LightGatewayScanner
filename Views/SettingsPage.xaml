@@ -131,6 +131,7 @@
 
         <!-- 底部保存栏 -->
         <VerticalStackLayout Grid.Row="1" Spacing="6" Padding="12,8,12,12" BackgroundColor="White">
+            <Label Text="{Binding VersionText}" FontSize="10" TextColor="#9A9AA4" HorizontalOptions="Center" />
             <Label Text="{Binding StatusMessage}" FontSize="12" TextColor="{Binding StatusColor}"
                    IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmptyConverter}}" />
             <Button Text="保存配置" Command="{Binding SaveCommand}"

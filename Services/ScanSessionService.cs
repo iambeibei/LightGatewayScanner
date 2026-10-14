@@ -188,9 +188,13 @@ public sealed class ScanSessionService : IScanSessionService
             return new SubmitOutcome
             {
                 Success = api.Success,
+                // SetPnApiService 的失败文案已带"写入失败："前缀，这里再包一层
+                // 会出现"写入失败：写入失败：…"，所以先判断是否已带前缀
                 Message = api.Success
                     ? $"写入成功：网关 {gatewayId} ← PN {pn}"
-                    : $"写入失败：{api.Message}",
+                    : api.Message.StartsWith("写入失败", StringComparison.Ordinal)
+                        ? api.Message
+                        : $"写入失败：{api.Message}",
                 Detail = api.RawResponse,
                 ServerMessage = api.ServerMessage,
                 StatusCode = api.StatusCode,

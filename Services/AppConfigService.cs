@@ -34,6 +34,7 @@ public sealed class AppConfigService : IAppConfigService
                 if (loaded is not null)
                 {
                     Current = Migrate(loaded);
+                    Persist(Current); // 迁移结果立即落盘，避免每次启动重复判断
                     return;
                 }
             }
@@ -130,9 +131,20 @@ public sealed class AppConfigService : IAppConfigService
 
     private static AppConfig Migrate(AppConfig loaded)
     {
-        // 后续版本升级在此做字段迁移
-        if (loaded.ConfigVersion < AppConfig.CurrentVersion)
-            loaded.ConfigVersion = AppConfig.CurrentVersion;
+        if (loaded.ConfigVersion >= AppConfig.CurrentVersion) return loaded;
+
+        // v2：接口地址整体迁到 http://192.168.1.65:11282。
+        // 配置是持久化的，只改代码默认值对老用户无效，所以在这里做数据迁移；
+        // 仅当保存的还是旧默认地址时才替换，用户自己改过的地址保持不动。
+        if (string.Equals(loaded.SetPnUrl?.Trim(), AppConfig.LegacySetPnUrl, StringComparison.OrdinalIgnoreCase))
+            loaded.SetPnUrl = AppConfig.DefaultSetPnUrl;
+
+        // v2：旧默认成功码 0,200 不认 code=1，会把 {"code":1,"message":"操作成功"} 误判成失败，
+        // 这里统一换成 0,1,200（用户显式改过的保持不动）
+        if (string.Equals((loaded.ApiSuccessCodes ?? string.Empty).Trim(), AppConfig.LegacyApiSuccessCodes, StringComparison.OrdinalIgnoreCase))
+            loaded.ApiSuccessCodes = AppConfig.DefaultApiSuccessCodes;
+
+        loaded.ConfigVersion = AppConfig.CurrentVersion;
         return loaded;
     }
 }
