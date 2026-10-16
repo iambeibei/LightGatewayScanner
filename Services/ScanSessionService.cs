@@ -74,7 +74,13 @@ public sealed class ScanSessionService : IScanSessionService
 
         var type = _classifier.Classify(code, config);
         if (type == ScanCodeType.Unknown)
-            return ScanAcceptOutcome.Fail(ScanAcceptStatus.Unknown, $"无法识别的条码：{code}");
+        {
+            // 二维码里经常塞网址或 JSON，给出明确线索，方便现场判断是不是码内容本身不对
+            var tip = code.Contains("://", StringComparison.Ordinal) || code.Contains('{')
+                ? "（内容像网址或 JSON，请确认码里只放编码本身）"
+                : string.Empty;
+            return ScanAcceptOutcome.Fail(ScanAcceptStatus.Unknown, $"无法识别的条码：{code}{tip}");
+        }
 
         // 手动指定槽位时，只接受匹配的类型，避免把 PN 填进网关字段
         if (ArmedSlot is { } armed && armed != type)
@@ -127,6 +133,28 @@ public sealed class ScanSessionService : IScanSessionService
         if (ready) message += "，可提交";
 
         return ScanAcceptOutcome.Ok(type, code, message, ready);
+    }
+
+    /// <summary>
+    /// API 模式：把网关 ID 直接写入会话槽位（不走扫码分类，因为它是接口返回的 deviceId）。
+    /// </summary>
+    public bool SetGatewayId(string gatewayId)
+    {
+        var id = (gatewayId ?? string.Empty).Trim();
+        if (id.Length == 0) return false;
+
+        _session.GatewayId = id;
+        _session.GatewayScannedAt = DateTime.Now;
+        ArmedSlot = null;
+        return true;
+    }
+
+    /// <summary>API 模式：切换老化架后旧网关 ID 失效，清掉它（不动储能 PN）</summary>
+    public void ClearGatewayId()
+    {
+        _session.GatewayId = null;
+        _session.GatewayScannedAt = null;
+        ArmedSlot = null;
     }
 
     public async Task<SubmitOutcome> SubmitAsync(bool force = false, CancellationToken cancellationToken = default)

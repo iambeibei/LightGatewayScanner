@@ -34,6 +34,22 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <!-- API 模式接口（老化架 / 点位下拉框数据源） -->
+                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="API 模式接口（选老化架 / 点位）" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                        <Label Text="老化架列表地址 RackPageList" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding RackPageListUrl}" Keyboard="Url" FontSize="13" />
+                        <Label Text="点位列表地址 AvailablePointList" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding AvailablePointListUrl}" Keyboard="Url" FontSize="13" />
+                        <Button Text="测试老化架接口" Command="{Binding TestRackApiCommand}"
+                                BackgroundColor="#EEEDFE" TextColor="#534AB7" CornerRadius="8" FontSize="13" Padding="12,10" />
+                        <Label Text="{Binding RackTestResult}" FontSize="12" TextColor="#5F5E5A"
+                               IsVisible="{Binding RackTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
+                    </VerticalStackLayout>
+                </Border>
+
                 <!-- Redis 配置 -->
                 <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
                     <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
@@ -78,6 +94,17 @@
                         <Entry Text="{Binding GatewayPattern}" FontSize="13" />
                         <Label Text="同一条码去重窗口（毫秒）" FontSize="12" TextColor="#6B6B76" />
                         <Entry Text="{Binding ScanDedupMsText}" Keyboard="Numeric" FontSize="14" />
+                        <Label Text="条码格式" FontSize="12" TextColor="#6B6B76" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="识别一维码（Code128 / Code39 / EAN / UPC）" FontSize="13"
+                                   VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding Scan1D}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="识别二维码（QR / DataMatrix / PDF417 / Aztec）" FontSize="13"
+                                   VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding Scan2D}" />
+                        </Grid>
                         <Grid ColumnDefinitions="*,Auto">
                             <Label Text="强制先扫网关 ID" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
                             <Switch Grid.Column="1" IsToggled="{Binding RequireScanOrder}" />

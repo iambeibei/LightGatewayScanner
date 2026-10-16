@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using LightGatewayScanner.Models;
+using LightGatewayScanner.Services;
 using LightGatewayScanner.ViewModels;
 using Microsoft.Maui.ApplicationModel;
 using ZXing.Net.Maui;
@@ -9,19 +11,34 @@ namespace LightGatewayScanner.Views;
 public partial class ScanPage : ContentPage
 {
     private readonly ScanViewModel _viewModel;
+    private readonly IAppConfigService _configService;
 
     /// <summary>当前相机实例；为 null 表示相机已彻底关闭并释放</summary>
     private CameraBarcodeReaderView? _camera;
 
     private bool _cameraPermissionGranted;
 
-    public ScanPage(ScanViewModel viewModel)
+    public ScanPage(ScanViewModel viewModel, IAppConfigService configService)
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
+        _configService = configService;
 
         // 相机开关状态由 ViewModel 驱动，这里跟随它真正地创建 / 释放相机
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+        // 设置里改了"识别一维码/二维码"开关后，重建相机让新格式生效
+        _configService.ConfigChanged += (_, _) => RebuildCameraForFormatChange();
+
+        // API 模式的两个下拉框。ItemDisplayBinding 的绑定对象是列表元素而不是 ViewModel，
+        // 放代码后置绑定可以绕开 XAML 编译期对绑定路径的类型检查（它不是 BindableProperty）。
+        RackPicker.SetBinding(Picker.ItemsSourceProperty, new Binding(nameof(ScanViewModel.Racks)));
+        RackPicker.ItemDisplayBinding = new Binding(nameof(AgingRackItem.Display));
+        RackPicker.SetBinding(Picker.SelectedItemProperty, new Binding(nameof(ScanViewModel.SelectedRack)));
+
+        PointPicker.SetBinding(Picker.ItemsSourceProperty, new Binding(nameof(ScanViewModel.Points)));
+        PointPicker.ItemDisplayBinding = new Binding(nameof(AgingPointItem.Display));
+        PointPicker.SetBinding(Picker.SelectedItemProperty, new Binding(nameof(ScanViewModel.SelectedPoint)));
     }
 
     protected override async void OnAppearing()
@@ -101,16 +118,46 @@ public partial class ScanPage : ContentPage
         ReleaseCamera();
     }
 
+    /// <summary>设置里改了条码格式开关后，重建相机让新配置生效</summary>
+    private void RebuildCameraForFormatChange()
+    {
+        if (_camera is null) return;
+
+        ReleaseCamera();
+        ApplyCameraState();
+    }
+
+    /// <summary>
+    /// 按配置组装要识别的条码格式。
+    /// 一维：Code128 / Code39 / Code93 / EAN / UPC 等；
+    /// 二维：**QR 码**、DataMatrix、PDF417、Aztec（TwoDimensional 已覆盖，这里再显式列出便于确认）。
+    /// </summary>
+    private ZXing.Net.Maui.BarcodeFormat BuildFormats()
+    {
+        var config = _configService.Current;
+
+        // BarcodeFormats（复数）是分组帮助类；具体的 QR 等格式在 BarcodeFormat 枚举上
+        var twoD = BarcodeFormats.TwoDimensional
+                   | BarcodeFormat.QrCode
+                   | BarcodeFormat.DataMatrix
+                   | BarcodeFormat.Pdf417
+                   | BarcodeFormat.Aztec;
+
+        if (config.Scan1D && config.Scan2D) return BarcodeFormats.OneDimensional | twoD;
+        if (config.Scan1D) return BarcodeFormats.OneDimensional;
+        return twoD;
+    }
+
     private void BuildCamera()
     {
         try
         {
             var camera = new CameraBarcodeReaderView
             {
-                // 只识别常见工业条码格式，减少误识别并提高帧率
+                // 一维 + 二维（含 QR 码）全开；只开一种时可以更快、更省电
                 Options = new BarcodeReaderOptions
                 {
-                    Formats = BarcodeFormats.OneDimensional | BarcodeFormats.TwoDimensional,
+                    Formats = BuildFormats(),
                     AutoRotate = true,
                     Multiple = false,
                     TryHarder = true,

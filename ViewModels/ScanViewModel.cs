@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LightGatewayScanner.Models;
@@ -11,19 +12,25 @@ public partial class ScanViewModel : ObservableObject
     private readonly IAppConfigService _configService;
     private readonly IFeedbackService _feedback;
     private readonly IAppLogService _logService;
+    private readonly IDeviceCallbackApiService _deviceCallbackApi;
 
     private CancellationTokenSource? _submitCts;
+
+    /// <summary>点位接口的请求代际：快速切换老化架时丢弃过期响应</summary>
+    private int _pointLoadGeneration;
 
     public ScanViewModel(
         IScanSessionService sessionService,
         IAppConfigService configService,
         IFeedbackService feedback,
-        IAppLogService logService)
+        IAppLogService logService,
+        IDeviceCallbackApiService deviceCallbackApi)
     {
         _sessionService = sessionService;
         _configService = configService;
         _feedback = feedback;
         _logService = logService;
+        _deviceCallbackApi = deviceCallbackApi;
 
         _configService.ConfigChanged += (_, _) => RefreshFromConfig();
         RefreshFromConfig();
@@ -53,9 +60,32 @@ public partial class ScanViewModel : ObservableObject
     [ObservableProperty] private bool isBusy;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CameraButtonText))]
+    [NotifyPropertyChangedFor(nameof(ShowCameraToggle))]
     private bool cameraVisible = true;
 
     public string CameraButtonText => CameraVisible ? "关闭相机" : "打开相机";
+
+    // ---------- 网关 ID 输入模式（扫码 / API 二选一，默认扫码） ----------
+
+    [ObservableProperty] private bool isApiMode;
+
+    [ObservableProperty] private ObservableCollection<AgingRackItem> racks = new();
+    [ObservableProperty] private AgingRackItem? selectedRack;
+    [ObservableProperty] private bool isRackLoading;
+    [ObservableProperty] private string? rackError;
+    [ObservableProperty] private string? rackHint;
+
+    [ObservableProperty] private ObservableCollection<AgingPointItem> points = new();
+    [ObservableProperty] private AgingPointItem? selectedPoint;
+    [ObservableProperty] private bool isPointLoading;
+    [ObservableProperty] private string? pointError;
+    [ObservableProperty] private string? pointHint;
+
+    /// <summary>顶部切换按钮文字：显示要点一下会进入的模式</summary>
+    public string ModeButtonText => IsApiMode ? "切到扫码模式" : "切到 API 模式";
+
+    /// <summary>相机关闭时才显示的"打开相机"按钮（API 模式下相机保持开启扫 PN）</summary>
+    public bool ShowCameraToggle => !CameraVisible;
     [ObservableProperty] private bool canSubmit;
 
     [ObservableProperty] private bool isConfigured;
@@ -105,6 +135,13 @@ public partial class ScanViewModel : ObservableObject
         ResultVisible = false;
         ResultText = null;
         ResultDetail = null;
+
+        // API 模式：同时清掉两个下拉框的选中项（列表保留，选同一老化架不必重新请求）
+        SelectedPoint = null;
+        SelectedRack = null;
+        Points.Clear();
+        PointError = null;
+        PointHint = null;
     }
 
     /// <summary>清空会话（两个码槽位与在线徽标），但保留结果条展示</summary>
@@ -116,11 +153,213 @@ public partial class ScanViewModel : ObservableObject
         OnlineText = "未校验";
         OnlineColor = Colors.Gray;
         ArmHint = string.Empty;
+
+        // API 模式：网关 ID 来自下拉框，清空后重新填回来，
+        // 保证"结果条清掉"不会连点位选择一起作废，便于同一台设备连续作业
+        if (IsApiMode && _sessionService.SetGatewayId(SelectedPoint?.DeviceId ?? string.Empty))
+            GatewayId = SelectedPoint!.DeviceId;
+
         SyncStatus();
     }
 
     [RelayCommand]
     private void ToggleCamera() => CameraVisible = !CameraVisible;
+
+    // ---------- API 模式 ----------
+
+    /// <summary>扫码模式 / API 模式切换（默认扫码模式）</summary>
+    [RelayCommand]
+    private async Task ToggleModeAsync()
+    {
+        IsApiMode = !IsApiMode;
+
+        if (IsApiMode)
+        {
+            // 进入 API 模式：相机保持开启（用来扫储能 PN），面板叠在相机上方
+            CameraVisible = true;
+            RackError = null;
+            PointError = null;
+
+            // 网关 ID 由下拉框决定，扫码只负责储能 PN
+            _sessionService.Arm(ScanCodeType.Pn);
+            ArmHint = "API 模式：扫码只填入储能设备 PN，网关 ID 由下方下拉框选择";
+            StatusText = "API 模式：请选择老化架与点位，然后扫描储能 PN";
+            StatusColor = Color.FromArgb("#185FA5");
+
+            if (Racks.Count == 0)
+                await LoadRacksAsync();
+        }
+        else
+        {
+            // 回到扫码模式：两个槽位都交还给扫码自动分类
+            _sessionService.Arm(null);
+            ArmHint = string.Empty;
+            StatusText = "已切回扫码模式";
+            StatusColor = Color.FromArgb("#185FA5");
+            CameraVisible = true;
+            SyncStatus();
+        }
+    }
+
+    /// <summary>拉取老化架列表（第一个下拉框的数据源）</summary>
+    [RelayCommand]
+    private async Task LoadRacksAsync()
+    {
+        if (IsRackLoading) return;
+
+        IsRackLoading = true;
+        RackError = null;
+        StatusText = "正在加载老化架列表…";
+        StatusColor = Color.FromArgb("#185FA5");
+
+        try
+        {
+            var result = await _deviceCallbackApi.GetRackListAsync();
+
+            if (result.Success)
+            {
+                Racks.Clear();
+                foreach (var rack in result.Items) Racks.Add(rack);
+
+                RackHint = result.Items.Count == 0 ? "未获取到老化架" : $"共 {result.Total} 个老化架";
+                if (result.Items.Count == 0)
+                {
+                    Points.Clear();
+                    SelectedPoint = null;
+                    PointHint = null;
+                }
+
+                StatusText = result.Items.Count == 0 ? "未获取到老化架" : "请选择老化架";
+                StatusColor = result.Items.Count == 0 ? Color.FromArgb("#854F0B") : Color.FromArgb("#185FA5");
+                if (result.Items.Count == 0) _feedback.Warning();
+            }
+            else
+            {
+                RackError = result.Message ?? "加载老化架失败";
+                StatusText = "老化架加载失败，可点右侧按钮重试";
+                StatusColor = Color.FromArgb("#A32D2D");
+                _feedback.Error();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _logService.WriteAsync("加载老化架异常", ex);
+            RackError = $"加载失败：{ex.Message}";
+            StatusText = "老化架加载异常";
+            StatusColor = Color.FromArgb("#A32D2D");
+        }
+        finally
+        {
+            IsRackLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// 拉取点位列表（第二个下拉框的数据源）。
+    /// 由第一个下拉框选中项联动触发，也可手动重试。
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadPointsAsync()
+    {
+        var rack = SelectedRack;
+        if (rack is null)
+        {
+            PointError = "请先选择老化架";
+            return;
+        }
+        if (IsPointLoading) return;
+
+        var generation = ++_pointLoadGeneration;
+        IsPointLoading = true;
+        PointError = null;
+        Points.Clear();
+        SelectedPoint = null;
+        StatusText = $"正在加载「{rack.Name}」的点位…";
+        StatusColor = Color.FromArgb("#185FA5");
+
+        try
+        {
+            var result = await _deviceCallbackApi.GetAvailablePointListAsync(rack.Id);
+
+            // 加载期间又切换了老化架 → 丢弃这次响应，避免串数据
+            if (generation != _pointLoadGeneration) return;
+
+            if (result.Success)
+            {
+                foreach (var point in result.Items) Points.Add(point);
+
+                PointHint = result.Items.Count == 0
+                    ? "该老化架下没有可用点位（deviceId 均为 0）"
+                    : $"共 {result.Total} 个点位（已过滤 deviceId=0）";
+
+                StatusText = result.Items.Count == 0 ? "该老化架下没有可用点位" : "请选择点位";
+                StatusColor = result.Items.Count == 0 ? Color.FromArgb("#854F0B") : Color.FromArgb("#185FA5");
+                if (result.Items.Count == 0) _feedback.Warning();
+            }
+            else
+            {
+                PointError = result.Message ?? "加载点位失败";
+                StatusText = "点位加载失败，可点下方按钮重试";
+                StatusColor = Color.FromArgb("#A32D2D");
+                _feedback.Error();
+            }
+        }
+        catch (Exception ex)
+        {
+            if (generation == _pointLoadGeneration)
+            {
+                await _logService.WriteAsync("加载点位异常", ex);
+                PointError = $"加载失败：{ex.Message}";
+                StatusText = "点位加载异常";
+                StatusColor = Color.FromArgb("#A32D2D");
+            }
+        }
+        finally
+        {
+            if (generation == _pointLoadGeneration)
+                IsPointLoading = false;
+        }
+    }
+
+    partial void OnIsApiModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ModeButtonText));
+        OnPropertyChanged(nameof(ShowCameraToggle));
+    }
+
+    /// <summary>第一个下拉框选中 → 联动拉取第二个接口的点位</summary>
+    partial void OnSelectedRackChanged(AgingRackItem? value)
+    {
+        if (value is null) return;
+
+        // 换老化架意味着原来的网关 ID 已失效，先清掉
+        _sessionService.ClearGatewayId();
+        GatewayId = null;
+        Points.Clear();
+        SelectedPoint = null;
+        PointHint = null;
+        _ = LoadPointsAsync();
+    }
+
+    /// <summary>第二个下拉框选中 → 把 deviceId 填进网关 ID</summary>
+    partial void OnSelectedPointChanged(AgingPointItem? value)
+    {
+        if (value is null) return;
+
+        if (_sessionService.SetGatewayId(value.DeviceId))
+        {
+            GatewayId = value.DeviceId;
+            StatusText = $"已选点位 {value.Display} → 网关 ID：{value.DeviceId}";
+            StatusColor = Color.FromArgb("#3B6D11");
+            _feedback.Tap();
+            SyncStatus();
+        }
+        else
+        {
+            PointError = "该点位数据异常（deviceId 为空），请重新选择";
+            StatusColor = Color.FromArgb("#A32D2D");
+        }
+    }
 
     [RelayCommand]
     private async Task OpenSettingsAsync()
@@ -162,6 +401,14 @@ public partial class ScanViewModel : ObservableObject
                 StatusText = outcome.Message;
                 StatusColor = Color.FromArgb("#3B6D11");
                 _feedback.Tap();
+
+                // API 模式下每次扫完都重新锁定 PN 槽位，避免下一次扫码把网关 ID 覆盖掉
+                if (IsApiMode)
+                {
+                    _sessionService.Arm(ScanCodeType.Pn);
+                    ArmHint = "API 模式：扫码只填入储能设备 PN，网关 ID 由下方下拉框选择";
+                }
+
                 SyncStatus();
 
                 if (outcome.Ready && _configService.Current.AutoSubmit)

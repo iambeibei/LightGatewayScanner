@@ -15,6 +15,15 @@ public interface IScanSessionService
 
     ScanAcceptOutcome Accept(string rawCode);
 
+    /// <summary>
+    /// API 模式：直接把网关 ID 写入会话（例如从点位下拉框选中的 deviceId）。
+    /// 返回 false 表示内容为空、未写入。
+    /// </summary>
+    bool SetGatewayId(string gatewayId);
+
+    /// <summary>API 模式：切换老化架后旧网关 ID 失效，清掉它</summary>
+    void ClearGatewayId();
+
     Task<SubmitOutcome> SubmitAsync(bool force = false, CancellationToken cancellationToken = default);
 
     void Arm(ScanCodeType? type);

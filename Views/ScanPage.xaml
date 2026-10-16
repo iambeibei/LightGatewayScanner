@@ -13,12 +13,21 @@
           Padding="12,10,12,14">
 
         <!-- 顶部标题栏 -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
             <VerticalStackLayout Spacing="2">
                 <Label Text="储能设备 PN 写入" FontSize="18" FontAttributes="Bold" TextColor="#1B1B1F" />
                 <Label Text="{Binding Subtitle}" FontSize="12" TextColor="#6B6B76" />
             </VerticalStackLayout>
             <Button Grid.Column="1"
+                    Text="{Binding ModeButtonText}"
+                    Command="{Binding ToggleModeCommand}"
+                    Padding="10,6"
+                    FontSize="11"
+                    BackgroundColor="#EEEDFE"
+                    TextColor="#534AB7"
+                    CornerRadius="8"
+                    VerticalOptions="Center" />
+            <Button Grid.Column="2"
                     Text="设置"
                     Command="{Binding OpenSettingsCommand}"
                     Padding="14,8"
@@ -29,51 +38,118 @@
                     VerticalOptions="Center" />
         </Grid>
 
-        <!-- 未配置储能设备字符串前缀提示 -->
-        <Border Grid.Row="1"
-                IsVisible="{Binding IsConfigured, Converter={StaticResource InvertedBoolConverter}}"
-                BackgroundColor="#FCEBEB"
-                Stroke="#A32D2D"
-                StrokeThickness="1"
-                Padding="12"
-                VerticalOptions="Start">
-            <Border.StrokeShape>
-                <RoundRectangle CornerRadius="10" />
-            </Border.StrokeShape>
-            <VerticalStackLayout Spacing="8">
-                <Label Text="{Binding ConfigHint}" FontSize="13" TextColor="#791F1F" />
-                <Button Text="前往设置" Command="{Binding OpenSettingsCommand}"
-                        BackgroundColor="#A32D2D" TextColor="White" CornerRadius="8"
-                        HorizontalOptions="Start" Padding="16,8" FontSize="13" />
-            </VerticalStackLayout>
-        </Border>
+        <!-- 采集区：API 模式面板（上，按内容高）+ 摄像头预览（下，占剩余空间），两者并存 -->
+        <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="8">
 
-        <!-- 摄像头预览 -->
-        <Border Grid.Row="1"
-                IsVisible="{Binding CameraVisible}"
-                Stroke="#C8C8D0"
-                StrokeThickness="1"
-                Padding="0"
-                BackgroundColor="#1B1B1F">
-            <Border.StrokeShape>
-                <RoundRectangle CornerRadius="12" />
-            </Border.StrokeShape>
-            <Grid RowDefinitions="*,Auto">
-                <!-- 相机器件由代码动态创建/销毁，关闭时才能真正释放摄像头 -->
-                <ContentView x:Name="CameraHost" Grid.Row="0" />
-                <HorizontalStackLayout Grid.Row="1" Spacing="8" Padding="8" BackgroundColor="#2A2A32">
-                    <Button x:Name="TorchButton" Text="照明" Clicked="OnTorchClicked"
-                            Padding="14,6" FontSize="12" CornerRadius="6"
-                            BackgroundColor="#3A3A44" TextColor="White" />
-                    <Button x:Name="CameraToggleButton" Text="{Binding CameraButtonText}" Clicked="OnCameraToggleClicked"
-                            Padding="14,6" FontSize="12" CornerRadius="6"
-                            BackgroundColor="#3A3A44" TextColor="White" />
-                    <Button Text="手动输入" Command="{Binding ManualInputCommand}"
-                            Padding="14,6" FontSize="12" CornerRadius="6"
-                            BackgroundColor="#3A3A44" TextColor="White" />
-                </HorizontalStackLayout>
-            </Grid>
-        </Border>
+            <!-- API 模式面板：选老化架 → 选点位（相机保持开启，用来扫储能 PN） -->
+            <Border Grid.Row="0"
+                    IsVisible="{Binding IsApiMode}"
+                    BackgroundColor="White"
+                    Stroke="#DCDCE4"
+                    StrokeThickness="1"
+                    Padding="10,8"
+                    VerticalOptions="Start">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="12" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Label Text="API 模式：老化架 → 点位（deviceId = 网关 ID）" FontSize="12"
+                               FontAttributes="Bold" TextColor="#1B1B1F" VerticalOptions="Center"
+                               LineBreakMode="TailTruncation" />
+                        <Button Grid.Column="1" Text="刷新" Command="{Binding LoadRacksCommand}"
+                                FontSize="11" Padding="8,4" CornerRadius="6"
+                                BackgroundColor="#E6F1FB" TextColor="#185FA5" />
+                    </Grid>
+
+                    <!-- 两个下拉框并排：左=老化架，右=点位（联动，先选老化架才有数据） -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="老化架" FontSize="10" TextColor="#6B6B76" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                <Picker x:Name="RackPicker" Title="请选择" FontSize="13" />
+                                <ActivityIndicator Grid.Column="1" IsRunning="{Binding IsRackLoading}"
+                                                   IsVisible="{Binding IsRackLoading}" Color="#512BD4"
+                                                   VerticalOptions="Center" />
+                            </Grid>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                            <Label Text="点位（层号+序号）" FontSize="10" TextColor="#6B6B76" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                <Picker x:Name="PointPicker" Title="先选老化架" FontSize="13" />
+                                <ActivityIndicator Grid.Column="1" IsRunning="{Binding IsPointLoading}"
+                                                   IsVisible="{Binding IsPointLoading}" Color="#512BD4"
+                                                   VerticalOptions="Center" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Label Text="{Binding RackHint}" FontSize="11" TextColor="#3B6D11"
+                           IsVisible="{Binding RackHint, Converter={StaticResource StringNotEmptyConverter}}" />
+                    <Label Text="{Binding RackError}" FontSize="11" TextColor="#A32D2D"
+                           IsVisible="{Binding RackError, Converter={StaticResource StringNotEmptyConverter}}" />
+                    <Button Text="重试加载老化架" Command="{Binding LoadRacksCommand}"
+                            IsVisible="{Binding RackError, Converter={StaticResource StringToBoolConverter}}"
+                            FontSize="11" Padding="8,4" CornerRadius="6" HorizontalOptions="Start"
+                            BackgroundColor="#FCEBEB" TextColor="#A32D2D" />
+
+                    <Label Text="{Binding PointHint}" FontSize="11" TextColor="#3B6D11"
+                           IsVisible="{Binding PointHint, Converter={StaticResource StringNotEmptyConverter}}" />
+                    <Label Text="{Binding PointError}" FontSize="11" TextColor="#A32D2D"
+                           IsVisible="{Binding PointError, Converter={StaticResource StringNotEmptyConverter}}" />
+                    <Button Text="重试加载点位" Command="{Binding LoadPointsCommand}"
+                            IsVisible="{Binding PointError, Converter={StaticResource StringToBoolConverter}}"
+                            FontSize="11" Padding="8,4" CornerRadius="6" HorizontalOptions="Start"
+                            BackgroundColor="#FCEBEB" TextColor="#A32D2D" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 未配置储能设备字符串前缀提示 -->
+            <Border Grid.Row="1"
+                    IsVisible="{Binding IsConfigured, Converter={StaticResource InvertedBoolConverter}}"
+                    BackgroundColor="#FCEBEB"
+                    Stroke="#A32D2D"
+                    StrokeThickness="1"
+                    Padding="12"
+                    VerticalOptions="Start">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="10" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="{Binding ConfigHint}" FontSize="13" TextColor="#791F1F" />
+                    <Button Text="前往设置" Command="{Binding OpenSettingsCommand}"
+                            BackgroundColor="#A32D2D" TextColor="White" CornerRadius="8"
+                            HorizontalOptions="Start" Padding="16,8" FontSize="13" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 摄像头预览 -->
+            <Border Grid.Row="1"
+                    IsVisible="{Binding CameraVisible}"
+                    Stroke="#C8C8D0"
+                    StrokeThickness="1"
+                    Padding="0"
+                    BackgroundColor="#1B1B1F">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="12" />
+                </Border.StrokeShape>
+                <Grid RowDefinitions="*,Auto">
+                    <!-- 相机器件由代码动态创建/销毁，关闭时才能真正释放摄像头 -->
+                    <ContentView x:Name="CameraHost" Grid.Row="0" />
+                    <HorizontalStackLayout Grid.Row="1" Spacing="8" Padding="8" BackgroundColor="#2A2A32">
+                        <Button x:Name="TorchButton" Text="照明" Clicked="OnTorchClicked"
+                                Padding="14,6" FontSize="12" CornerRadius="6"
+                                BackgroundColor="#3A3A44" TextColor="White" />
+                        <Button x:Name="CameraToggleButton" Text="{Binding CameraButtonText}" Clicked="OnCameraToggleClicked"
+                                Padding="14,6" FontSize="12" CornerRadius="6"
+                                BackgroundColor="#3A3A44" TextColor="White" />
+                        <Button Text="手动输入" Command="{Binding ManualInputCommand}"
+                                Padding="14,6" FontSize="12" CornerRadius="6"
+                                BackgroundColor="#3A3A44" TextColor="White" />
+                    </HorizontalStackLayout>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- 扫码结果卡片 -->
         <VerticalStackLayout Grid.Row="2" Spacing="8">
@@ -169,9 +245,9 @@
                     Padding="6,14" FontSize="13" BackgroundColor="#512BD4" TextColor="White" CornerRadius="10" />
         </Grid>
 
-        <!-- 相机关闭时，用底部独立一行的按钮重新打开预览（相机面板收起后里面没有入口） -->
+        <!-- 相机关闭时，用底部独立一行的按钮重新打开预览（扫码模式专属） -->
         <Button Grid.Row="5" Text="{Binding CameraButtonText}" Clicked="OnCameraToggleClicked"
-                IsVisible="{Binding CameraVisible, Converter={StaticResource InvertedBoolConverter}}"
+                IsVisible="{Binding ShowCameraToggle}"
                 Padding="16,10" FontSize="13" BackgroundColor="#E6F1FB" TextColor="#185FA5" CornerRadius="10" />
     </Grid>
 </ContentPage>

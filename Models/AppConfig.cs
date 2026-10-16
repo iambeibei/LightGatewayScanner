@@ -21,8 +21,14 @@ public sealed class AppConfig
     /// <summary>v1 时代的旧默认成功码（不认 code=1，会把成功判成失败）</summary>
     public const string LegacyApiSuccessCodes = "0,200";
 
+    /// <summary>API 模式：老化架列表接口</summary>
+    public const string DefaultRackPageListUrl = "http://192.168.1.65:11282/DeviceServiceCallback/RackPageList";
+
+    /// <summary>API 模式：点位列表接口</summary>
+    public const string DefaultAvailablePointListUrl = "http://192.168.1.65:11282/DeviceServiceCallback/AvailablePointList";
+
     /// <summary>构建标记，显示在设置页，用于确认手机装的是哪一版</summary>
-    public const string BuildTag = "2026-10-14.1";
+    public const string BuildTag = "2026-10-15.3";
 
     public int ConfigVersion { get; set; } = CurrentVersion;
 
@@ -32,6 +38,13 @@ public sealed class AppConfig
     public bool AllowInvalidCertificate { get; set; } = true;
     /// <summary>响应体里的"成功业务码"，逗号分隔。默认 0,1,200；留空则按 0/1/200 处理</summary>
     public string ApiSuccessCodes { get; set; } = DefaultApiSuccessCodes;
+
+    // ---------- API 模式接口（选老化架 / 点位） ----------
+    /// <summary>老化架列表接口（API 模式第一个下拉框）</summary>
+    public string RackPageListUrl { get; set; } = DefaultRackPageListUrl;
+
+    /// <summary>点位列表接口（API 模式第二个下拉框，依赖老化架选中项）</summary>
+    public string AvailablePointListUrl { get; set; } = DefaultAvailablePointListUrl;
 
     // ---------- Redis 配置 ----------
     public string RedisConnectionString { get; set; } = "192.168.1.65:6379,password=123456,defaultDatabase=0";
@@ -49,6 +62,10 @@ public sealed class AppConfig
     /// <summary>未命中 PN 前缀的码按此正则校验，通过则判定为网关 ID</summary>
     public string GatewayPattern { get; set; } = "^[A-Za-z0-9][A-Za-z0-9\\-_]{2,63}$";
     public int ScanDedupMs { get; set; } = 1200;
+    /// <summary>识别一维条码（Code128 / Code39 / EAN / UPC 等）</summary>
+    public bool Scan1D { get; set; } = true;
+    /// <summary>识别二维码（QR / DataMatrix / PDF417 / Aztec）</summary>
+    public bool Scan2D { get; set; } = true;
     /// <summary>是否强制"先扫网关 ID，再扫储能 PN"</summary>
     public bool RequireScanOrder { get; set; }
     /// <summary>同类型重复扫码时：true=覆盖，false=忽略并提示</summary>
@@ -91,6 +108,18 @@ public sealed class AppConfig
                  || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             errors.Add((nameof(SetPnUrl), "接口地址必须是 http:// 或 https:// 开头的完整地址"));
 
+        if (string.IsNullOrWhiteSpace(RackPageListUrl))
+            errors.Add((nameof(RackPageListUrl), "老化架接口地址不能为空"));
+        else if (!Uri.TryCreate(RackPageListUrl.Trim(), UriKind.Absolute, out var rackUri)
+                 || (rackUri.Scheme != Uri.UriSchemeHttp && rackUri.Scheme != Uri.UriSchemeHttps))
+            errors.Add((nameof(RackPageListUrl), "老化架接口地址必须是 http:// 或 https:// 开头的完整地址"));
+
+        if (string.IsNullOrWhiteSpace(AvailablePointListUrl))
+            errors.Add((nameof(AvailablePointListUrl), "点位接口地址不能为空"));
+        else if (!Uri.TryCreate(AvailablePointListUrl.Trim(), UriKind.Absolute, out var pointUri)
+                 || (pointUri.Scheme != Uri.UriSchemeHttp && pointUri.Scheme != Uri.UriSchemeHttps))
+            errors.Add((nameof(AvailablePointListUrl), "点位接口地址必须是 http:// 或 https:// 开头的完整地址"));
+
         if (TimeoutSeconds < 1 || TimeoutSeconds > 120)
             errors.Add((nameof(TimeoutSeconds), "超时时间需在 1~120 秒之间"));
 
@@ -115,6 +144,9 @@ public sealed class AppConfig
 
         if (ScanDedupMs < 0 || ScanDedupMs > 10000)
             errors.Add((nameof(ScanDedupMs), "去重窗口需在 0~10000 毫秒之间"));
+
+        if (!Scan1D && !Scan2D)
+            errors.Add((nameof(Scan1D), "一维码与二维码至少要开启一种，否则无法扫码"));
 
         if (!string.IsNullOrWhiteSpace(GatewayPattern))
         {

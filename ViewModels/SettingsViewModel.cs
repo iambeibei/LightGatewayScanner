@@ -11,17 +11,20 @@ public partial class SettingsViewModel : ObservableObject
     private readonly IAppConfigService _configService;
     private readonly IRedisOnlineService _redisOnlineService;
     private readonly ISetPnApiService _setPnApiService;
+    private readonly IDeviceCallbackApiService _deviceCallbackApi;
     private readonly IAppLogService _logService;
 
     public SettingsViewModel(
         IAppConfigService configService,
         IRedisOnlineService redisOnlineService,
         ISetPnApiService setPnApiService,
+        IDeviceCallbackApiService deviceCallbackApi,
         IAppLogService logService)
     {
         _configService = configService;
         _redisOnlineService = redisOnlineService;
         _setPnApiService = setPnApiService;
+        _deviceCallbackApi = deviceCallbackApi;
         _logService = logService;
         LoadFromConfig();
     }
@@ -31,6 +34,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string timeoutSecondsText = "10";
     [ObservableProperty] private bool allowInvalidCertificate;
     [ObservableProperty] private string apiSuccessCodes = "0,1,200";
+
+    // ---------- API 模式接口（选老化架 / 点位） ----------
+    [ObservableProperty] private string rackPageListUrl = string.Empty;
+    [ObservableProperty] private string availablePointListUrl = string.Empty;
 
     // ---------- Redis ----------
     [ObservableProperty] private string redisConnectionString = string.Empty;
@@ -47,6 +54,8 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string scanDedupMsText = "1200";
     [ObservableProperty] private bool requireScanOrder;
     [ObservableProperty] private bool overwriteDuplicate;
+    [ObservableProperty] private bool scan1D = true;
+    [ObservableProperty] private bool scan2D = true;
 
     // ---------- 行为 ----------
     [ObservableProperty] private bool autoSubmit;
@@ -58,6 +67,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private Color statusColor = Colors.Gray;
     [ObservableProperty] private string? redisTestResult;
     [ObservableProperty] private string? apiTestResult;
+    [ObservableProperty] private string? rackTestResult;
     [ObservableProperty] private bool isTesting;
 
     public string PrefixHint =>
@@ -78,6 +88,9 @@ public partial class SettingsViewModel : ObservableObject
         AllowInvalidCertificate = c.AllowInvalidCertificate;
         ApiSuccessCodes = c.ApiSuccessCodes;
 
+        RackPageListUrl = c.RackPageListUrl;
+        AvailablePointListUrl = c.AvailablePointListUrl;
+
         RedisConnectionString = c.RedisConnectionString;
         OnlineListKey = c.OnlineListKey;
         RedisTimeoutMsText = c.RedisTimeoutMs.ToString();
@@ -91,6 +104,8 @@ public partial class SettingsViewModel : ObservableObject
         ScanDedupMsText = c.ScanDedupMs.ToString();
         RequireScanOrder = c.RequireScanOrder;
         OverwriteDuplicate = c.OverwriteDuplicate;
+        Scan1D = c.Scan1D;
+        Scan2D = c.Scan2D;
 
         AutoSubmit = c.AutoSubmit;
         AutoResetAfterSuccess = c.AutoResetAfterSuccess;
@@ -107,6 +122,9 @@ public partial class SettingsViewModel : ObservableObject
             AllowInvalidCertificate = AllowInvalidCertificate,
             ApiSuccessCodes = ApiSuccessCodes ?? string.Empty,
 
+            RackPageListUrl = RackPageListUrl?.Trim() ?? string.Empty,
+            AvailablePointListUrl = AvailablePointListUrl?.Trim() ?? string.Empty,
+
             RedisConnectionString = RedisConnectionString?.Trim() ?? string.Empty,
             OnlineListKey = OnlineListKey?.Trim() ?? string.Empty,
             RedisTimeoutMs = ParseInt(RedisTimeoutMsText, 5000),
@@ -120,6 +138,8 @@ public partial class SettingsViewModel : ObservableObject
             ScanDedupMs = ParseInt(ScanDedupMsText, 1200),
             RequireScanOrder = RequireScanOrder,
             OverwriteDuplicate = OverwriteDuplicate,
+            Scan1D = Scan1D,
+            Scan2D = Scan2D,
 
             AutoSubmit = AutoSubmit,
             AutoResetAfterSuccess = AutoResetAfterSuccess,
@@ -188,6 +208,29 @@ public partial class SettingsViewModel : ObservableObject
         catch (Exception ex)
         {
             ApiTestResult = $"异常：{ex.Message}";
+        }
+        finally
+        {
+            IsTesting = false;
+        }
+    }
+
+    /// <summary>测试 API 模式的老化架接口：真发一次请求，返回条数或失败原因</summary>
+    [RelayCommand]
+    private async Task TestRackApiAsync()
+    {
+        IsTesting = true;
+        RackTestResult = "正在请求老化架列表…";
+        try
+        {
+            var result = await _deviceCallbackApi.GetRackListAsync();
+            RackTestResult = result.Success
+                ? $"成功：共 {result.Items.Count} 个老化架（total={result.Total}）"
+                : $"失败：{result.Message}";
+        }
+        catch (Exception ex)
+        {
+            RackTestResult = $"异常：{ex.Message}";
         }
         finally
         {

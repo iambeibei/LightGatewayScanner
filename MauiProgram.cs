@@ -28,6 +28,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IScanClassifier, ScanClassifier>();
 		builder.Services.AddSingleton<IRedisOnlineService, RedisOnlineService>();
 		builder.Services.AddSingleton<ISetPnApiService, SetPnApiService>();
+		builder.Services.AddSingleton<IDeviceCallbackApiService, DeviceCallbackApiService>();
 		builder.Services.AddSingleton<IScanSessionService, ScanSessionService>();
 		builder.Services.AddSingleton<IFeedbackService, FeedbackService>();
 
