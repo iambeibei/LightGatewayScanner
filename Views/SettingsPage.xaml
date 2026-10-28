@@ -12,25 +12,57 @@
         <ScrollView Grid.Row="0">
             <VerticalStackLayout Spacing="12" Padding="12,12,12,4">
 
-                <!-- 接口配置 -->
+                <!-- MQTT 配置（设置 PN） -->
                 <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
                     <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="接口配置" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
-                        <Label Text="SetPn 接口地址" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding SetPnUrl}" Keyboard="Url" FontSize="14" />
-                        <Label Text="超时时间（秒，1~120）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding TimeoutSecondsText}" Keyboard="Numeric" FontSize="14" />
-                        <Label Text="成功业务码（响应体 code 字段，逗号分隔）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding ApiSuccessCodes}" FontSize="14" Placeholder="0,1,200" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="信任自签 HTTPS 证书" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
-                            <Switch Grid.Column="1" IsToggled="{Binding AllowInvalidCertificate}" />
+                        <Label Text="MQTT 配置（设置 PN）" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                        <Label Text="服务器地址（IP 或域名，不带 http://）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding MqttHost}" FontSize="14" Placeholder="192.168.1.65" />
+                        <Label Text="端口" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding MqttPortText}" Keyboard="Numeric" MaxLength="5" FontSize="14" Placeholder="1883" />
+                        <Label Text="用户名" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding MqttUsername}" FontSize="14" Placeholder="dev" />
+                        <Label Text="密码" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding MqttPassword}" IsPassword="True" FontSize="14" />
+                        <Label Text="回执超时（秒，1~60，默认 5）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding MqttReplyTimeoutText}" Keyboard="Numeric" FontSize="14" Placeholder="5" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Label Text="{Binding MqttStateText}" FontSize="13" VerticalOptions="Center"
+                                   TextColor="{Binding MqttStateColor}" />
+                            <Button Grid.Column="1" Text="测试 MQTT 连接" Command="{Binding TestMqttCommand}"
+                                    BackgroundColor="#E6F1FB" TextColor="#185FA5" CornerRadius="8"
+                                    FontSize="13" Padding="12,10" />
                         </Grid>
-                        <Button Text="测试接口连通性" Command="{Binding TestApiCommand}"
-                                BackgroundColor="#E6F1FB" TextColor="#185FA5" CornerRadius="8" FontSize="13" Padding="12,10" />
-                        <Label Text="{Binding ApiTestResult}" FontSize="12" TextColor="#5F5E5A"
-                               IsVisible="{Binding ApiTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
+                        <Label Text="{Binding MqttTestResult}" FontSize="12" TextColor="#5F5E5A"
+                               IsVisible="{Binding MqttTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
+                        <Label Text="发布主题 server/{网关ID}/cmd/set_pn，回执主题 device/{网关ID}/cmd/reply/pn；超过回执超时即判失败，不自动重发"
+                               FontSize="11" TextColor="#6B6B76" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 蓝牙（BLE）MAC 扫描 -->
+                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="蓝牙（BLE）MAC 扫描" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="提交前按 PN 扫描蓝牙取 MAC" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding BleScanEnabled}" />
+                        </Grid>
+                        <Label Text="扫描超时（秒，1~15，默认 5）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding BleScanTimeoutText}" Keyboard="Numeric" FontSize="14" Placeholder="5" />
+                        <Label Text="信号门限 dBm（0 = 不过滤，或 -100 ~ -30，默认 0）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding BleMinRssiText}" Keyboard="Text" MaxLength="5" FontSize="14" Placeholder="-80" />
+                        <Label Text="MAC 缓存（秒，0~600，0 = 不缓存，默认 120）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding BleMacCacheSecondsText}" Keyboard="Numeric" FontSize="14" Placeholder="120" />
+                        <Button Text="扫描附近设备（3 秒）" Command="{Binding TestBleScanCommand}"
+                                BackgroundColor="#E1F5EE" TextColor="#0F6E56" CornerRadius="8" FontSize="13" Padding="12,10" />
+                        <Label Text="{Binding BleScanTestResult}" FontSize="11" TextColor="#5F5E5A"
+                               LineBreakMode="WordWrap"
+                               IsVisible="{Binding BleScanTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
+                        <Label Text="广播名等于 PN 时取 MAC 随 PN 下发（AddrType 固定 0）；门限只过滤候选、不影响下面诊断列表；名称可能只出现在扫描响应里，以“合并名”为准"
+                               FontSize="11" TextColor="#6B6B76" />
                     </VerticalStackLayout>
                 </Border>
 
@@ -43,6 +75,14 @@
                         <Entry Text="{Binding RackPageListUrl}" Keyboard="Url" FontSize="13" />
                         <Label Text="点位列表地址 AvailablePointList" FontSize="12" TextColor="#6B6B76" />
                         <Entry Text="{Binding AvailablePointListUrl}" Keyboard="Url" FontSize="13" />
+                        <Label Text="接口超时（秒，1~120）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding TimeoutSecondsText}" Keyboard="Numeric" FontSize="14" />
+                        <Label Text="成功业务码（响应体 code 字段，逗号分隔）" FontSize="12" TextColor="#6B6B76" />
+                        <Entry Text="{Binding ApiSuccessCodes}" FontSize="14" Placeholder="0,1,200" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="信任自签 HTTPS 证书" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                            <Switch Grid.Column="1" IsToggled="{Binding AllowInvalidCertificate}" />
+                        </Grid>
                         <Button Text="测试老化架接口" Command="{Binding TestRackApiCommand}"
                                 BackgroundColor="#EEEDFE" TextColor="#534AB7" CornerRadius="8" FontSize="13" Padding="12,10" />
                         <Label Text="{Binding RackTestResult}" FontSize="12" TextColor="#5F5E5A"

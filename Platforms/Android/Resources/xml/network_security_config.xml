@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  写入接口现在走内网 HTTP（http://192.168.1.65:11282/AgingService/SetPn），
-  因此需要 cleartextTrafficPermitted="true"；同时为将来切回 HTTPS 自签证书
-  （如 https://192.168.40.116:7088）保留 user 信任锚配置：
-  Android 7+ 默认不信任应用自带的用户证书，这里显式加入 user 信任锚，
-  现场在手机上安装服务器证书后即可正常访问。
+  设置 PN 已改为 MQTT（明文 TCP 1883，与本文件无关，仅需 INTERNET 权限）。
+  本文件现在只服务于 API 模式的两个 HTTP 接口：
+  RackPageList / AvailablePointList（http://192.168.1.65:11282/...），
+  因此需要 cleartextTrafficPermitted="true"。
+  同时为将来这些接口切到 HTTPS 自签证书保留 user 信任锚：
+  Android 7+ 默认不信任应用自带的用户证书，现场在手机上安装服务器证书后即可访问。
   若 APP 设置里开启了"信任自签证书"，代码层面还会做一次证书回调放行。
 -->
 <network-security-config>

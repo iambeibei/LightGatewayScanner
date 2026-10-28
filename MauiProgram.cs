@@ -27,7 +27,8 @@ public static class MauiProgram
 		// 业务服务
 		builder.Services.AddSingleton<IScanClassifier, ScanClassifier>();
 		builder.Services.AddSingleton<IRedisOnlineService, RedisOnlineService>();
-		builder.Services.AddSingleton<ISetPnApiService, SetPnApiService>();
+		builder.Services.AddSingleton<IMqttSetPnService, MqttSetPnService>();
+		builder.Services.AddSingleton<IBleScanner, BleScanner>();
 		builder.Services.AddSingleton<IDeviceCallbackApiService, DeviceCallbackApiService>();
 		builder.Services.AddSingleton<IScanSessionService, ScanSessionService>();
 		builder.Services.AddSingleton<IFeedbackService, FeedbackService>();
@@ -47,6 +48,9 @@ public static class MauiProgram
 		// 启动时载入配置并清理历史日志
 		var configService = app.Services.GetRequiredService<IAppConfigService>();
 		configService.Load();
+
+		// 后台连一次 MQTT（失败不影响启动，提交时会再尝试）
+		app.Services.GetRequiredService<IMqttSetPnService>().Start();
 
 		var logService = app.Services.GetRequiredService<IAppLogService>();
 		_ = logService.WriteAsync("APP 启动");

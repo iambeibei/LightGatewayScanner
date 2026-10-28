@@ -57,7 +57,7 @@ public sealed class AppConfigService : IAppConfigService
             return false;
         }
 
-        var previousUrl = Current.SetPnUrl;
+        var previousMqtt = MqttSignature(Current);
         var previousRedis = Current.RedisConnectionString;
         var previousKey = Current.OnlineListKey;
         var previousPrefixes = Current.PnPrefixes;
@@ -67,7 +67,8 @@ public sealed class AppConfigService : IAppConfigService
         Current.ConfigVersion = AppConfig.CurrentVersion;
         Persist(Current);
 
-        bool material = !string.Equals(previousUrl, Current.SetPnUrl, StringComparison.Ordinal)
+        // MQTT 连接参数变化需要让客户端重连；回执超时不参与（不影响连接）
+        bool material = !string.Equals(previousMqtt, MqttSignature(Current), StringComparison.Ordinal)
                         || !string.Equals(previousRedis, Current.RedisConnectionString, StringComparison.Ordinal)
                         || !string.Equals(previousKey, Current.OnlineListKey, StringComparison.Ordinal)
                         || !string.Equals(previousPrefixes, Current.PnPrefixes, StringComparison.Ordinal)
@@ -77,6 +78,9 @@ public sealed class AppConfigService : IAppConfigService
         ConfigChanged?.Invoke(this, EventArgs.Empty);
         return true;
     }
+
+    private static string MqttSignature(AppConfig config)
+        => $"{config.MqttHost?.Trim()}|{config.MqttPort}|{config.MqttUsername?.Trim()}|{config.MqttPassword}";
 
     public void ResetToDefault()
     {
@@ -133,16 +137,20 @@ public sealed class AppConfigService : IAppConfigService
     {
         if (loaded.ConfigVersion >= AppConfig.CurrentVersion) return loaded;
 
-        // v2：接口地址整体迁到 http://192.168.1.65:11282。
-        // 配置是持久化的，只改代码默认值对老用户无效，所以在这里做数据迁移；
-        // 仅当保存的还是旧默认地址时才替换，用户自己改过的地址保持不动。
-        if (string.Equals(loaded.SetPnUrl?.Trim(), AppConfig.LegacySetPnUrl, StringComparison.OrdinalIgnoreCase))
-            loaded.SetPnUrl = AppConfig.DefaultSetPnUrl;
-
-        // v2：旧默认成功码 0,200 不认 code=1，会把 {"code":1,"message":"操作成功"} 误判成失败，
-        // 这里统一换成 0,1,200（用户显式改过的保持不动）
+        // v2：旧默认成功码 0,200 不认 code=1，会把 {"code":1,...} 误判成失败，
+        // 这里统一换成 0,1,200（用户显式改过的保持不动）。
+        // 该字段现在只服务于老化架 / 点位接口，仍需保留迁移。
         if (string.Equals((loaded.ApiSuccessCodes ?? string.Empty).Trim(), AppConfig.LegacyApiSuccessCodes, StringComparison.OrdinalIgnoreCase))
             loaded.ApiSuccessCodes = AppConfig.DefaultApiSuccessCodes;
+
+        // v3：设置 PN 改为 MQTT，SetPnUrl 字段已删除。
+        // 老配置 JSON 里残留的 "SetPnUrl" 会被 System.Text.Json 默认忽略（未开启 Disallow），
+        // 不会导致反序列化异常，下次保存后自动消失；MQTT 参数直接用出厂默认值。
+
+        // v4：新增 BLE 扫描配置（BleScanEnabled / BleScanTimeoutSeconds），
+        // 老配置缺这两个字段时保留属性初始值（true / 5），无需数据迁移。
+
+        // v5：新增 BleMinRssi / BleMacCacheSeconds，缺字段时保留初始值（0 / 120），同样无需迁移。
 
         loaded.ConfigVersion = AppConfig.CurrentVersion;
         return loaded;

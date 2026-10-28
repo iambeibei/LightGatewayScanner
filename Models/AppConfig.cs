@@ -7,14 +7,25 @@ namespace LightGatewayScanner.Models;
 /// </summary>
 public sealed class AppConfig
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 5;
 
     // ---------- 出厂默认值（同时用于旧版配置迁移） ----------
-    /// <summary>写入接口地址（2026-10-14 起迁到 192.168.1.65:11282，HTTP 明文内网）</summary>
-    public const string DefaultSetPnUrl = "http://192.168.1.65:11282/AgingService/SetPn";
+    /// <summary>MQTT Broker 地址（设置 PN 用）</summary>
+    public const string DefaultMqttHost = "192.168.1.65";
+    public const int DefaultMqttPort = 1883;
+    public const string DefaultMqttUsername = "dev";
+    public const string DefaultMqttPassword = "123456";
+    /// <summary>等待网关回执的超时（秒），超时即判失败</summary>
+    public const int DefaultMqttReplyTimeoutSeconds = 5;
 
-    /// <summary>v1 时代的旧接口地址，仅用于把老配置迁移过来</summary>
-    public const string LegacySetPnUrl = "https://192.168.40.116:7088/AgingService/SetPn";
+    /// <summary>提交前按 PN 扫描 BLE 取 MAC 的默认超时（秒）</summary>
+    public const int DefaultBleScanTimeoutSeconds = 5;
+
+    /// <summary>RSSI 门限（dBm）：0 = 不过滤</summary>
+    public const int DefaultBleMinRssi = 0;
+
+    /// <summary>同一 PN 的 MAC 缓存时长（秒）：0 = 不缓存</summary>
+    public const int DefaultBleMacCacheSeconds = 120;
 
     public const string DefaultApiSuccessCodes = "0,1,200";
 
@@ -28,12 +39,33 @@ public sealed class AppConfig
     public const string DefaultAvailablePointListUrl = "http://192.168.1.65:11282/DeviceServiceCallback/AvailablePointList";
 
     /// <summary>构建标记，显示在设置页，用于确认手机装的是哪一版</summary>
-    public const string BuildTag = "2026-10-15.3";
+    public const string BuildTag = "2026-10-28.2";
 
     public int ConfigVersion { get; set; } = CurrentVersion;
 
-    // ---------- 接口配置 ----------
-    public string SetPnUrl { get; set; } = DefaultSetPnUrl;
+    // ---------- MQTT 配置（设置 PN） ----------
+    public string MqttHost { get; set; } = DefaultMqttHost;
+    public int MqttPort { get; set; } = DefaultMqttPort;
+    public string MqttUsername { get; set; } = DefaultMqttUsername;
+    public string MqttPassword { get; set; } = DefaultMqttPassword;
+    /// <summary>发布后等待 device/{网关ID}/cmd/reply/pn 回执的超时（秒）</summary>
+    public int MqttReplyTimeoutSeconds { get; set; } = DefaultMqttReplyTimeoutSeconds;
+
+    // ---------- 蓝牙（BLE）MAC 扫描 ----------
+    /// <summary>提交前按 PN 扫描 BLE，命中则把 MAC 一起下发</summary>
+    public bool BleScanEnabled { get; set; } = true;
+
+    /// <summary>BLE 扫描超时（秒），超时未命中就只发 PN</summary>
+    public int BleScanTimeoutSeconds { get; set; } = DefaultBleScanTimeoutSeconds;
+
+    /// <summary>RSSI 门限（dBm）：-100~-30 生效，0 = 不过滤；只影响取 MAC 的候选集，不影响设置页诊断列表</summary>
+    public int BleMinRssi { get; set; } = DefaultBleMinRssi;
+
+    /// <summary>同一 PN 的 MAC 缓存时长（秒），0 = 不缓存；命中缓存不再启动扫描</summary>
+    public int BleMacCacheSeconds { get; set; } = DefaultBleMacCacheSeconds;
+
+    // ---------- HTTP 接口配置（仅老化架 / 点位接口使用） ----------
+    /// <summary>HTTP 接口超时（秒），供 RackPageList / AvailablePointList 使用</summary>
     public int TimeoutSeconds { get; set; } = 10;
     public bool AllowInvalidCertificate { get; set; } = true;
     /// <summary>响应体里的"成功业务码"，逗号分隔。默认 0,1,200；留空则按 0/1/200 处理</summary>
@@ -102,11 +134,27 @@ public sealed class AppConfig
     {
         var errors = new List<(string, string)>();
 
-        if (string.IsNullOrWhiteSpace(SetPnUrl))
-            errors.Add((nameof(SetPnUrl), "接口地址不能为空"));
-        else if (!Uri.TryCreate(SetPnUrl.Trim(), UriKind.Absolute, out var uri)
-                 || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-            errors.Add((nameof(SetPnUrl), "接口地址必须是 http:// 或 https:// 开头的完整地址"));
+        if (string.IsNullOrWhiteSpace(MqttHost))
+            errors.Add((nameof(MqttHost), "MQTT 服务器地址不能为空"));
+        else if (MqttHost.Contains("://", StringComparison.Ordinal)
+                 || MqttHost.Contains('/')
+                 || MqttHost.Any(char.IsWhiteSpace))
+            errors.Add((nameof(MqttHost), "MQTT 服务器只填 IP 或域名，不要带 http:// 前缀或路径"));
+
+        if (MqttPort < 1 || MqttPort > 65535)
+            errors.Add((nameof(MqttPort), "MQTT 端口需在 1~65535 之间"));
+
+        if (MqttReplyTimeoutSeconds < 1 || MqttReplyTimeoutSeconds > 60)
+            errors.Add((nameof(MqttReplyTimeoutSeconds), "回执超时需在 1~60 秒之间"));
+
+        if (BleScanTimeoutSeconds < 1 || BleScanTimeoutSeconds > 15)
+            errors.Add((nameof(BleScanTimeoutSeconds), "蓝牙扫描超时需在 1~15 秒之间"));
+
+        if (BleMinRssi != 0 && (BleMinRssi < -100 || BleMinRssi > -30))
+            errors.Add((nameof(BleMinRssi), "蓝牙信号门限需为 0（不过滤）或 -100~-30 dBm 之间"));
+
+        if (BleMacCacheSeconds < 0 || BleMacCacheSeconds > 600)
+            errors.Add((nameof(BleMacCacheSeconds), "MAC 缓存时间需在 0~600 秒之间（0 = 不缓存）"));
 
         if (string.IsNullOrWhiteSpace(RackPageListUrl))
             errors.Add((nameof(RackPageListUrl), "老化架接口地址不能为空"));

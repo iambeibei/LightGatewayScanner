@@ -5,14 +5,15 @@ namespace LightGatewayScanner.Services;
 /// <summary>
 /// 扫码会话状态机 + 提交编排：
 /// Empty → GatewayOnly / PnOnly → Ready（两个码都拿到才允许提交）。
-/// 负责去重、顺序校验、类型冲突处理，以及"在线校验 → 调接口"的串联。
+/// 负责去重、顺序校验、类型冲突处理，以及"在线校验 → MQTT 写入"的串联。
 /// </summary>
 public sealed class ScanSessionService : IScanSessionService
 {
     private readonly IAppConfigService _configService;
     private readonly IScanClassifier _classifier;
     private readonly IRedisOnlineService _redisOnlineService;
-    private readonly ISetPnApiService _setPnApiService;
+    private readonly IMqttSetPnService _mqttSetPnService;
+    private readonly IBleScanner _bleScanner;
     private readonly IAppLogService _logService;
 
     private readonly ScanSession _session = new();
@@ -27,13 +28,15 @@ public sealed class ScanSessionService : IScanSessionService
         IAppConfigService configService,
         IScanClassifier classifier,
         IRedisOnlineService redisOnlineService,
-        ISetPnApiService setPnApiService,
+        IMqttSetPnService mqttSetPnService,
+        IBleScanner bleScanner,
         IAppLogService logService)
     {
         _configService = configService;
         _classifier = classifier;
         _redisOnlineService = redisOnlineService;
-        _setPnApiService = setPnApiService;
+        _mqttSetPnService = mqttSetPnService;
+        _bleScanner = bleScanner;
         _logService = logService;
     }
 
@@ -157,7 +160,8 @@ public sealed class ScanSessionService : IScanSessionService
         ArmedSlot = null;
     }
 
-    public async Task<SubmitOutcome> SubmitAsync(bool force = false, CancellationToken cancellationToken = default)
+    public async Task<SubmitOutcome> SubmitAsync(bool force = false, IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var config = _configService.Current;
 
@@ -208,25 +212,78 @@ public sealed class ScanSessionService : IScanSessionService
                 await _logService.WriteAsync($"【强制提交】Redis 不可用仍写入 gateway={gatewayId} pn={pn}");
             }
 
-            var api = await _setPnApiService.SetPnAsync(gatewayId, pn, cancellationToken);
+            // ---------- 按 PN 扫描蓝牙取 MAC（Redis 校验通过后、发布之前） ----------
+            var ble = BleScanResult.Skipped("未开启蓝牙扫描");
+
+            if (config.BleScanEnabled)
+            {
+                progress?.Report("正在扫描蓝牙…");
+                try
+                {
+                    ble = await _bleScanner.FindByAdvertisedNameAsync(
+                        pn,
+                        Math.Clamp(config.BleScanTimeoutSeconds, 1, 15),
+                        progress,
+                        cancellationToken);
+
+                    await _logService.WriteAsync(
+                        $"BLE 扫描 {(ble.Found ? "命中" : "未命中")} pn={pn} mac={ble.Mac ?? "-"} " +
+                        $"rssi={ble.Rssi} 缓存={ble.FromCache} 同名设备={ble.DeviceCount} " +
+                        $"耗时={ble.ElapsedMs}ms 说明={ble.Reason ?? "-"}");
+                }
+                catch (OperationCanceledException)
+                {
+                    await _logService.WriteAsync($"提交在蓝牙扫描阶段被取消 gateway={gatewayId} pn={pn}");
+                    return new SubmitOutcome
+                    {
+                        Success = false,
+                        Message = "提交已取消（蓝牙扫描阶段）",
+                        OnlineStatus = check.Status,
+                        GatewayId = gatewayId,
+                        Pn = pn
+                    };
+                }
+                catch (Exception ex)
+                {
+                    await _logService.WriteAsync($"BLE 扫描异常 pn={pn}", ex);
+                    ble = BleScanResult.Miss(BleScanStatus.Error, $"蓝牙扫描异常：{ex.Message}");
+                }
+            }
+
+            progress?.Report(ble.Found
+                ? $"已获取 MAC {ble.Mac}，正在发送…"
+                : "未扫到蓝牙，正在按 PN 发送…");
+
+            var api = await _mqttSetPnService.SetPnAsync(gatewayId, pn, ble.Mac, cancellationToken);
 
             if (api.Success)
+            {
                 _lastSubmittedKey = $"{gatewayId}|{pn}";
+            }
+            else if (ble.FromCache)
+            {
+                // 缓存的 MAC 可能已过期（设备换随机地址等），失败后作废，下次重新扫描
+                _bleScanner.InvalidateCache(pn);
+                await _logService.WriteAsync($"网关回执失败，作废 MAC 缓存 pn={pn} mac={ble.Mac}");
+            }
 
             return new SubmitOutcome
             {
                 Success = api.Success,
-                // SetPnApiService 的失败文案已带"写入失败："前缀，这里再包一层
-                // 会出现"写入失败：写入失败：…"，所以先判断是否已带前缀
+                // 服务层只给原因文本，"写入失败："前缀统一在这里加，避免出现双前缀
                 Message = api.Success
                     ? $"写入成功：网关 {gatewayId} ← PN {pn}"
-                    : api.Message.StartsWith("写入失败", StringComparison.Ordinal)
-                        ? api.Message
-                        : $"写入失败：{api.Message}",
+                    : $"写入失败：{api.Message}",
                 Detail = api.RawResponse,
-                ServerMessage = api.ServerMessage,
-                StatusCode = api.StatusCode,
+                ServerMessage = api.GatewayMessage,
+                Seq = api.Seq,
                 ElapsedMs = api.ElapsedMs,
+                DeviceMac = api.DeviceMac,
+                BleNote = ble.Found ? null : ble.Reason,
+                BleElapsedMs = ble.ElapsedMs,
+                BleRssi = ble.Found ? ble.Rssi : 0,
+                BleDeviceCount = ble.DeviceCount,
+                BleFromCache = ble.FromCache,
                 OnlineStatus = check.Status,
                 GatewayId = gatewayId,
                 Pn = pn

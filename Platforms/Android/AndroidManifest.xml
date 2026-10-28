@@ -18,7 +18,17 @@
 	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+	<!-- 蓝牙扫描取 MAC（Android 12+）：neverForLocation 表示不用于推断位置 -->
+	<uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+	                 android:usesPermissionFlags="neverForLocation" />
+	<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+	<!-- Android 11 及以下：老蓝牙权限（安装即授予）+ 定位（BLE 扫描结果必需） -->
+	<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+	<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+
 	<uses-feature android:name="android.hardware.camera" android:required="false" />
 	<uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 	<uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+	<uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 </manifest>

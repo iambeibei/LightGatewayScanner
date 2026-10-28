@@ -499,11 +499,22 @@ public partial class ScanViewModel : ObservableObject
         OnlineText = "校验中…";
         OnlineColor = Color.FromArgb("#185FA5");
 
-        _submitCts = new CancellationTokenSource(TimeSpan.FromSeconds(_configService.Current.TimeoutSeconds + 15));
+        // 总预算 = Redis 查询 + 蓝牙扫描 + MQTT 建连/发布 + 等待回执 + 余量
+        var config = _configService.Current;
+        var bleBudget = config.BleScanEnabled ? Math.Clamp(config.BleScanTimeoutSeconds, 1, 15) + 2 : 0;
+        var budgetSeconds = config.RedisTimeoutMs / 1000.0 + bleBudget + config.MqttReplyTimeoutSeconds + 18;
+        _submitCts = new CancellationTokenSource(TimeSpan.FromSeconds(budgetSeconds));
+
+        // 阶段状态（校验 → 扫描蓝牙 → 发送）由服务层推回来
+        var progress = new Progress<string>(text =>
+        {
+            StatusText = text;
+            StatusColor = Color.FromArgb("#185FA5");
+        });
 
         try
         {
-            var outcome = await _sessionService.SubmitAsync(force, _submitCts.Token);
+            var outcome = await _sessionService.SubmitAsync(force, progress, _submitCts.Token);
 
             ApplyOnlineStatus(outcome.OnlineStatus);
 
@@ -565,9 +576,26 @@ public partial class ScanViewModel : ObservableObject
     {
         var parts = new List<string>();
 
-        if (outcome.StatusCode is int statusCode) parts.Add($"HTTP {statusCode}");
+        if (outcome.Seq is long seq) parts.Add($"Seq {seq}");
         if (outcome.ElapsedMs > 0) parts.Add($"耗时 {outcome.ElapsedMs}ms");
-        if (!string.IsNullOrWhiteSpace(outcome.ServerMessage)) parts.Add($"服务端：{outcome.ServerMessage}");
+
+        if (!string.IsNullOrWhiteSpace(outcome.DeviceMac))
+        {
+            var mac = $"MAC {outcome.DeviceMac}";
+            if (outcome.BleFromCache) mac += "（缓存）";
+            else if (outcome.BleRssi != 0) mac += $" {outcome.BleRssi}dBm";
+
+            if (outcome.BleDeviceCount > 1) mac += $" 同名{outcome.BleDeviceCount}台取最强";
+            parts.Add(mac);
+
+            if (outcome.BleElapsedMs > 0) parts.Add($"蓝牙 {outcome.BleElapsedMs}ms");
+        }
+        else if (!string.IsNullOrWhiteSpace(outcome.BleNote))
+        {
+            parts.Add($"未扫到蓝牙（{outcome.BleNote}）");
+        }
+
+        if (!string.IsNullOrWhiteSpace(outcome.ServerMessage)) parts.Add($"网关：{outcome.ServerMessage}");
 
         var head = string.Join(" · ", parts);
         if (string.IsNullOrWhiteSpace(outcome.Detail)) return head;

@@ -10,27 +10,51 @@ public partial class SettingsViewModel : ObservableObject
 {
     private readonly IAppConfigService _configService;
     private readonly IRedisOnlineService _redisOnlineService;
-    private readonly ISetPnApiService _setPnApiService;
+    private readonly IMqttSetPnService _mqttSetPnService;
     private readonly IDeviceCallbackApiService _deviceCallbackApi;
+    private readonly IBleScanner _bleScanner;
     private readonly IAppLogService _logService;
 
     public SettingsViewModel(
         IAppConfigService configService,
         IRedisOnlineService redisOnlineService,
-        ISetPnApiService setPnApiService,
+        IMqttSetPnService mqttSetPnService,
         IDeviceCallbackApiService deviceCallbackApi,
+        IBleScanner bleScanner,
         IAppLogService logService)
     {
         _configService = configService;
         _redisOnlineService = redisOnlineService;
-        _setPnApiService = setPnApiService;
+        _mqttSetPnService = mqttSetPnService;
         _deviceCallbackApi = deviceCallbackApi;
+        _bleScanner = bleScanner;
         _logService = logService;
+
+        _mqttSetPnService.StateChanged += (_, _) => MainThread.BeginInvokeOnMainThread(RefreshMqttState);
+
         LoadFromConfig();
+        RefreshMqttState();
     }
 
-    // ---------- 接口 ----------
-    [ObservableProperty] private string setPnUrl = string.Empty;
+    // ---------- 蓝牙（BLE） ----------
+    [ObservableProperty] private bool bleScanEnabled;
+    [ObservableProperty] private string bleScanTimeoutText = "5";
+    [ObservableProperty] private string bleMinRssiText = "0";
+    [ObservableProperty] private string bleMacCacheSecondsText = "120";
+    [ObservableProperty] private string? bleScanTestResult;
+    [ObservableProperty] private bool isBleTesting;
+
+    // ---------- MQTT（设置 PN） ----------
+    [ObservableProperty] private string mqttHost = string.Empty;
+    [ObservableProperty] private string mqttPortText = "1883";
+    [ObservableProperty] private string mqttUsername = string.Empty;
+    [ObservableProperty] private string mqttPassword = string.Empty;
+    [ObservableProperty] private string mqttReplyTimeoutText = "5";
+    [ObservableProperty] private string mqttStateText = "未连接";
+    [ObservableProperty] private Color mqttStateColor = Colors.Gray;
+    [ObservableProperty] private string? mqttTestResult;
+
+    // ---------- HTTP 接口（老化架 / 点位） ----------
     [ObservableProperty] private string timeoutSecondsText = "10";
     [ObservableProperty] private bool allowInvalidCertificate;
     [ObservableProperty] private string apiSuccessCodes = "0,1,200";
@@ -66,7 +90,6 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string? statusMessage;
     [ObservableProperty] private Color statusColor = Colors.Gray;
     [ObservableProperty] private string? redisTestResult;
-    [ObservableProperty] private string? apiTestResult;
     [ObservableProperty] private string? rackTestResult;
     [ObservableProperty] private bool isTesting;
 
@@ -83,7 +106,17 @@ public partial class SettingsViewModel : ObservableObject
     private void LoadFromConfig()
     {
         var c = _configService.Current;
-        SetPnUrl = c.SetPnUrl;
+        MqttHost = c.MqttHost;
+        MqttPortText = c.MqttPort.ToString();
+        MqttUsername = c.MqttUsername;
+        MqttPassword = c.MqttPassword;
+        MqttReplyTimeoutText = c.MqttReplyTimeoutSeconds.ToString();
+
+        BleScanEnabled = c.BleScanEnabled;
+        BleScanTimeoutText = c.BleScanTimeoutSeconds.ToString();
+        BleMinRssiText = c.BleMinRssi.ToString();
+        BleMacCacheSecondsText = c.BleMacCacheSeconds.ToString();
+
         TimeoutSecondsText = c.TimeoutSeconds.ToString();
         AllowInvalidCertificate = c.AllowInvalidCertificate;
         ApiSuccessCodes = c.ApiSuccessCodes;
@@ -117,7 +150,17 @@ public partial class SettingsViewModel : ObservableObject
     {
         var config = new AppConfig
         {
-            SetPnUrl = SetPnUrl?.Trim() ?? string.Empty,
+            MqttHost = MqttHost?.Trim() ?? string.Empty,
+            MqttPort = ParseInt(MqttPortText, 1883),
+            MqttUsername = MqttUsername?.Trim() ?? string.Empty,
+            MqttPassword = MqttPassword ?? string.Empty,
+            MqttReplyTimeoutSeconds = ParseInt(MqttReplyTimeoutText, 5),
+
+            BleScanEnabled = BleScanEnabled,
+            BleScanTimeoutSeconds = ParseInt(BleScanTimeoutText, 5),
+            BleMinRssi = ParseInt(BleMinRssiText, 0),
+            BleMacCacheSeconds = ParseInt(BleMacCacheSecondsText, 120),
+
             TimeoutSeconds = ParseInt(TimeoutSecondsText, 10),
             AllowInvalidCertificate = AllowInvalidCertificate,
             ApiSuccessCodes = ApiSuccessCodes ?? string.Empty,
@@ -196,22 +239,81 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>测试 MQTT：用页面当前输入值建临时连接并订阅回执主题，不会发送写入命令</summary>
     [RelayCommand]
-    private async Task TestApiAsync()
+    private async Task TestMqttAsync()
     {
         IsTesting = true;
-        ApiTestResult = "正在探测接口连通性…";
+        MqttTestResult = "正在连接 MQTT…";
         try
         {
-            ApiTestResult = await _setPnApiService.ProbeAsync();
+            MqttTestResult = await _mqttSetPnService.ProbeAsync(
+                MqttHost?.Trim() ?? string.Empty,
+                ParseInt(MqttPortText, 1883),
+                MqttUsername?.Trim(),
+                MqttPassword);
         }
         catch (Exception ex)
         {
-            ApiTestResult = $"异常：{ex.Message}";
+            MqttTestResult = $"异常：{ex.Message}";
         }
         finally
         {
             IsTesting = false;
+        }
+    }
+
+    /// <summary>刷新常驻连接状态显示</summary>
+    private void RefreshMqttState()
+    {
+        MqttStateText = _mqttSetPnService.IsConnected
+            ? $"● 已连接 {_mqttSetPnService.Endpoint}"
+            : $"○ 未连接 {_mqttSetPnService.Endpoint}";
+        MqttStateColor = _mqttSetPnService.IsConnected
+            ? Color.FromArgb("#3B6D11")
+            : Color.FromArgb("#A32D2D");
+    }
+
+    /// <summary>测试蓝牙：扫 3 秒列出附近带名称的广播设备，便于现场确认 PN 是否在广播</summary>
+    [RelayCommand]
+    private async Task TestBleScanAsync()
+    {
+        IsBleTesting = true;
+        BleScanTestResult = "正在扫描蓝牙（3 秒）…";
+        try
+        {
+            var result = await _bleScanner.ScanNearbyAsync(3);
+
+            if (!result.Success)
+            {
+                BleScanTestResult = $"扫描失败：{result.Error}";
+                return;
+            }
+
+            if (result.Devices.Count == 0)
+            {
+                BleScanTestResult = "3 秒内未发现任何带名称的广播设备";
+                return;
+            }
+
+            var shown = Math.Min(10, result.Devices.Count);
+            var lines = result.Devices.Take(shown).Select(d =>
+            {
+                var head = $"{d.Name}  {d.Mac}  {d.Rssi}dBm{(d.Connectable == false ? "  不可连" : string.Empty)}";
+                return string.IsNullOrWhiteSpace(d.AdText)
+                    ? head
+                    : head + "\n    " + d.AdText.Replace("\n", "\n    ");
+            });
+
+            BleScanTestResult = $"发现 {result.Devices.Count} 个设备（显示前 {shown} 个）：\n" + string.Join("\n", lines);
+        }
+        catch (Exception ex)
+        {
+            BleScanTestResult = $"异常：{ex.Message}";
+        }
+        finally
+        {
+            IsBleTesting = false;
         }
     }
 
@@ -274,7 +376,7 @@ public partial class SettingsViewModel : ObservableObject
             var page = Application.Current?.Windows.FirstOrDefault()?.Page;
             if (page is not null)
                 json = await page.DisplayPromptAsync("导入配置", "粘贴配置 JSON", "导入", "取消",
-                    placeholder: "{\"SetPnUrl\":\"...\"}", keyboard: Keyboard.Text);
+                    placeholder: "{\"MqttHost\":\"192.168.1.65\"}", keyboard: Keyboard.Text);
         }
 
         if (string.IsNullOrWhiteSpace(json)) return;

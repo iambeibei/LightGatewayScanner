@@ -24,7 +24,12 @@ public interface IScanSessionService
     /// <summary>API 模式：切换老化架后旧网关 ID 失效，清掉它</summary>
     void ClearGatewayId();
 
-    Task<SubmitOutcome> SubmitAsync(bool force = false, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// 提交：Redis 在线校验 → （可选）扫描 BLE 取 MAC → MQTT 发布并等回执。
+    /// <paramref name="progress"/> 用于把"正在扫描蓝牙…"等阶段状态推给界面。
+    /// </summary>
+    Task<SubmitOutcome> SubmitAsync(bool force = false, IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default);
 
     void Arm(ScanCodeType? type);
 

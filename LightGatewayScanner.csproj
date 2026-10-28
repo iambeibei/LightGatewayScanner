@@ -39,8 +39,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<!-- App Icon：BLUETTI 品牌标识（白底自适应图标，前景内容限制在 66% 安全区内） -->
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.png" Color="#FFFFFF" />
 
 		<!-- Splash Screen -->
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
@@ -61,6 +61,8 @@
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 		<PackageReference Include="ZXing.Net.Maui.Controls" Version="0.10.4" />
 		<PackageReference Include="StackExchange.Redis" Version="3.4.0" />
+		<!-- 设置 PN 改为 MQTT 发布/订阅（5.x 无 ManagedClient，重连自行实现） -->
+		<PackageReference Include="MQTTnet" Version="5.1.0.1559" />
 	</ItemGroup>
 
 </Project>
