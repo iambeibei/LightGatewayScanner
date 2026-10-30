@@ -13,6 +13,89 @@
             <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
             <converters:StringNotEmptyConverter x:Key="StringNotEmptyConverter" />
             <converters:StringToBoolConverter x:Key="StringToBoolConverter" />
+
+            <!-- 界面语义色：页面只引用这些资源，保持现场高对比度与统一配色 -->
+            <Color x:Key="AppBackgroundColor">#F5F6F8</Color>
+            <Color x:Key="SurfaceColor">#FFFFFF</Color>
+            <Color x:Key="TextPrimaryColor">#1B1B1F</Color>
+            <Color x:Key="TextSecondaryColor">#6B6B76</Color>
+            <Color x:Key="BorderColor">#DCDCE4</Color>
+            <Color x:Key="FieldBackgroundColor">#F5F6F8</Color>
+            <Color x:Key="AccentSoftColor">#EEEDFE</Color>
+            <Color x:Key="AccentTextColor">#534AB7</Color>
+            <Color x:Key="InfoSoftColor">#E6F1FB</Color>
+            <Color x:Key="InfoTextColor">#185FA5</Color>
+            <Color x:Key="SuccessColor">#3B6D11</Color>
+            <Color x:Key="ErrorColor">#A32D2D</Color>
+            <Color x:Key="ErrorSoftColor">#FCEBEB</Color>
+            <Color x:Key="NeutralSoftColor">#F1EFE8</Color>
+            <Color x:Key="NeutralTextColor">#5F5E5A</Color>
+
+            <Style x:Key="CardStyle" TargetType="Border">
+                <Setter Property="BackgroundColor" Value="{StaticResource SurfaceColor}" />
+                <Setter Property="Stroke" Value="{StaticResource BorderColor}" />
+                <Setter Property="StrokeThickness" Value="1" />
+                <Setter Property="Padding" Value="14,12" />
+                <Setter Property="StrokeShape" Value="RoundRectangle 12" />
+            </Style>
+            <Style x:Key="SectionTitleStyle" TargetType="Label">
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="TextColor" Value="{StaticResource TextPrimaryColor}" />
+            </Style>
+            <Style x:Key="FieldLabelStyle" TargetType="Label">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="TextColor" Value="{StaticResource TextSecondaryColor}" />
+                <Setter Property="Margin" Value="0,4,0,-4" />
+            </Style>
+            <Style x:Key="HelperTextStyle" TargetType="Label">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="TextColor" Value="{StaticResource TextSecondaryColor}" />
+                <Setter Property="LineBreakMode" Value="WordWrap" />
+            </Style>
+            <Style x:Key="FieldEntryStyle" TargetType="Entry">
+                <Setter Property="BackgroundColor" Value="{StaticResource FieldBackgroundColor}" />
+                <Setter Property="TextColor" Value="{StaticResource TextPrimaryColor}" />
+                <Setter Property="PlaceholderColor" Value="{StaticResource TextSecondaryColor}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="MinimumHeightRequest" Value="46" />
+            </Style>
+            <Style x:Key="FieldPickerStyle" TargetType="Picker">
+                <Setter Property="BackgroundColor" Value="{StaticResource FieldBackgroundColor}" />
+                <Setter Property="TextColor" Value="{StaticResource TextPrimaryColor}" />
+                <Setter Property="TitleColor" Value="{StaticResource TextSecondaryColor}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="MinimumHeightRequest" Value="46" />
+            </Style>
+            <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="{StaticResource Primary}" />
+                <Setter Property="TextColor" Value="White" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Padding" Value="16,12" />
+                <Setter Property="MinimumHeightRequest" Value="48" />
+            </Style>
+            <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="{StaticResource AccentSoftColor}" />
+                <Setter Property="TextColor" Value="{StaticResource AccentTextColor}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="12,10" />
+                <Setter Property="MinimumHeightRequest" Value="44" />
+            </Style>
+            <Style x:Key="InfoButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                <Setter Property="BackgroundColor" Value="{StaticResource InfoSoftColor}" />
+                <Setter Property="TextColor" Value="{StaticResource InfoTextColor}" />
+            </Style>
+            <Style x:Key="QuietButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                <Setter Property="BackgroundColor" Value="{StaticResource NeutralSoftColor}" />
+                <Setter Property="TextColor" Value="{StaticResource NeutralTextColor}" />
+            </Style>
+            <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                <Setter Property="BackgroundColor" Value="{StaticResource ErrorSoftColor}" />
+                <Setter Property="TextColor" Value="{StaticResource ErrorColor}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -14,6 +14,7 @@ public partial class ScanViewModel : ObservableObject
     private readonly IFeedbackService _feedback;
     private readonly IAppLogService _logService;
     private readonly IDeviceCallbackApiService _deviceCallbackApi;
+    private readonly IBleScanner _bleScanner;
 
     private CancellationTokenSource? _submitCts;
 
@@ -28,13 +29,15 @@ public partial class ScanViewModel : ObservableObject
         IAppConfigService configService,
         IFeedbackService feedback,
         IAppLogService logService,
-        IDeviceCallbackApiService deviceCallbackApi)
+        IDeviceCallbackApiService deviceCallbackApi,
+        IBleScanner bleScanner)
     {
         _sessionService = sessionService;
         _configService = configService;
         _feedback = feedback;
         _logService = logService;
         _deviceCallbackApi = deviceCallbackApi;
+        _bleScanner = bleScanner;
 
         _configService.ConfigChanged += (_, _) => RefreshFromConfig();
         RefreshFromConfig();
@@ -110,6 +113,25 @@ public partial class ScanViewModel : ObservableObject
 
     [ObservableProperty] private string armHint = string.Empty;
 
+    // ---------- PN 过滤快捷面板（与设置页共用同一份配置） ----------
+
+    [ObservableProperty] private string pnPrefixesQuick = string.Empty;
+    [ObservableProperty] private bool ignorePnCaseQuick;
+    [ObservableProperty] private bool requireNumericSuffixQuick;
+
+    /// <summary>默认收起：现场主界面优先保证相机与提交按钮的可用面积</summary>
+    [ObservableProperty] private bool isPnPanelExpanded;
+    [ObservableProperty] private string? pnQuickStatus;
+
+    /// <summary>蓝牙未开启提示条：只在"配置启用 BLE 扫描 + 系统蓝牙关闭"时显示</summary>
+    [ObservableProperty] private bool bluetoothOffBannerVisible;
+
+    public string PnPanelToggleText => IsPnPanelExpanded ? "收起" : "PN 过滤";
+
+    public string PnPrefixSummary => string.IsNullOrWhiteSpace(PnPrefixesQuick)
+        ? "未设置前缀，扫码不可用"
+        : $"前缀：{PnPrefixesQuick}";
+
     public string GatewayDisplay => string.IsNullOrWhiteSpace(GatewayId) ? "未扫描" : GatewayId;
     public string PnDisplay => string.IsNullOrWhiteSpace(Pn) ? "未扫描" : Pn;
 
@@ -179,6 +201,122 @@ public partial class ScanViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleCamera() => CameraVisible = !CameraVisible;
+
+    // ---------- PN 过滤快捷面板 ----------
+
+    [RelayCommand]
+    private void TogglePnPanel()
+    {
+        IsPnPanelExpanded = !IsPnPanelExpanded;
+        if (IsPnPanelExpanded) PnQuickStatus = null;
+    }
+
+    /// <summary>
+    /// 把快捷面板的值写回配置。Entry 失焦/回车与开关切换时调用；
+    /// 与当前配置相同则直接返回，避免 ConfigChanged 自触发造成重复重建相机。
+    /// </summary>
+    [RelayCommand]
+    private void SavePnFilter()
+    {
+        var current = _configService.Current;
+        var prefixes = (PnPrefixesQuick ?? string.Empty).Trim();
+
+        if (string.Equals(prefixes, current.PnPrefixes, StringComparison.Ordinal)
+            && IgnorePnCaseQuick == current.IgnorePnCase
+            && RequireNumericSuffixQuick == current.RequireNumericSuffix)
+            return;
+
+        var config = current.Clone();
+        config.PnPrefixes = prefixes;
+        config.IgnorePnCase = IgnorePnCaseQuick;
+        config.RequireNumericSuffix = RequireNumericSuffixQuick;
+
+        if (!_configService.Save(config, out var error))
+        {
+            PnQuickStatus = $"保存失败：{error}";
+            StatusText = "PN 过滤保存失败";
+            StatusColor = Color.FromArgb("#A32D2D");
+            _feedback.Error();
+            return;
+        }
+
+        PnQuickStatus = prefixes.Length == 0 ? "已清空前缀，扫码已停用" : "PN 过滤已生效";
+        _feedback.Tap();
+    }
+
+    // ---------- 蓝牙状态 ----------
+
+    /// <summary>
+    /// 启动检测入口：后台执行、立即返回，绝不阻塞首帧。
+    /// 只在"配置启用 BLE 扫描 + 系统蓝牙关闭"时点亮提示条。
+    /// </summary>
+    public void BeginStartupBluetoothCheck()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var state = _bleScanner.GetBluetoothState();
+                await _logService.WriteAsync($"启动蓝牙检测 state={state}");
+
+                var shouldShow = state == BleState.Off && _configService.Current.BleScanEnabled;
+                MainThread.BeginInvokeOnMainThread(() => BluetoothOffBannerVisible = shouldShow);
+            }
+            catch (Exception ex)
+            {
+                // 检测失败不能影响启动，也不弹窗打扰用户
+                await _logService.WriteAsync("启动蓝牙检测异常", ex);
+            }
+        });
+    }
+
+    /// <summary>回到扫码页时刷新提示条（用户可能刚去系统设置开了蓝牙）</summary>
+    public void RefreshBluetoothBanner()
+    {
+        try
+        {
+            BluetoothOffBannerVisible =
+                _bleScanner.GetBluetoothState() == BleState.Off
+                && _configService.Current.BleScanEnabled;
+        }
+        catch (Exception)
+        {
+            BluetoothOffBannerVisible = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ShowBluetoothGuideAsync()
+    {
+        var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+        if (page is null) return;
+
+        var go = await page.DisplayAlertAsync(
+            "蓝牙未开启",
+            "提交写入前会按储能设备 PN 扫描蓝牙广播以获取 MAC，MAC 会随 PN 一起下发。\n\n" +
+            "蓝牙关闭时仍可提交，但只会下发 PN、不带 MAC。\n\n" +
+            "请点击「去开启蓝牙」，在系统设置中打开蓝牙后返回本页。",
+            "去开启蓝牙", "暂不");
+
+        if (!go) return;
+
+        try
+        {
+#if ANDROID
+            var intent = new Android.Content.Intent(Android.Provider.Settings.ActionBluetoothSettings);
+            intent.AddFlags(Android.Content.ActivityFlags.NewTask);
+            Android.App.Application.Context.StartActivity(intent);
+#else
+            await Launcher.Default.OpenAsync("https://support.google.com/android/answer/9075921");
+#endif
+        }
+        catch (Exception ex)
+        {
+            await _logService.WriteAsync("打开蓝牙设置失败", ex);
+            StatusText = "无法打开系统蓝牙设置，请手动进入设置 → 蓝牙";
+            StatusColor = Color.FromArgb("#A32D2D");
+        }
+    }
 
     // ---------- API 模式 ----------
 
@@ -341,6 +479,12 @@ public partial class ScanViewModel : ObservableObject
         OnPropertyChanged(nameof(ModeButtonText));
         OnPropertyChanged(nameof(ShowCameraToggle));
     }
+
+    partial void OnIsPnPanelExpandedChanged(bool value)
+        => OnPropertyChanged(nameof(PnPanelToggleText));
+
+    partial void OnPnPrefixesQuickChanged(string value)
+        => OnPropertyChanged(nameof(PnPrefixSummary));
 
     /// <summary>第一个下拉框选中 → 联动拉取第二个接口的点位</summary>
     partial void OnSelectedRackChanged(AgingRackItem? value)
@@ -690,6 +834,12 @@ public partial class ScanViewModel : ObservableObject
     private void RefreshFromConfig()
     {
         var config = _configService.Current;
+
+        // 快捷面板与设置页共用同一份配置：外部保存后这里同步回显
+        PnPrefixesQuick = config.PnPrefixes;
+        IgnorePnCaseQuick = config.IgnorePnCase;
+        RequireNumericSuffixQuick = config.RequireNumericSuffix;
+
         IsConfigured = config.IsScanConfigured;
         ConfigHint = IsConfigured
             ? null
@@ -707,5 +857,8 @@ public partial class ScanViewModel : ObservableObject
             CameraVisible = true;
             SyncStatus();
         }
+
+        // 配置变化可能开启/关闭 BLE 扫描，提示条要跟着更新
+        RefreshBluetoothBanner();
     }
 }

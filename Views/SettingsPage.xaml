@@ -5,205 +5,255 @@
              x:Class="LightGatewayScanner.Views.SettingsPage"
              x:DataType="vm:SettingsViewModel"
              Title="设置"
-             BackgroundColor="#F5F6F8">
+             BackgroundColor="{StaticResource AppBackgroundColor}">
+    <ContentPage.Resources>
+        <Style x:Key="SettingsCardStyle" TargetType="Border" BasedOn="{StaticResource CardStyle}">
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+        <Style x:Key="SettingsStackStyle" TargetType="VerticalStackLayout">
+            <Setter Property="Spacing" Value="8" />
+        </Style>
+        <Style x:Key="SettingsEntryStyle" TargetType="Entry" BasedOn="{StaticResource FieldEntryStyle}" />
+        <Style x:Key="SettingsSwitchRowStyle" TargetType="Grid">
+            <Setter Property="ColumnDefinitions" Value="*,Auto" />
+            <Setter Property="ColumnSpacing" Value="16" />
+            <Setter Property="MinimumHeightRequest" Value="42" />
+        </Style>
+        <Style x:Key="SettingsSwitchLabelStyle" TargetType="Label">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="TextColor" Value="{StaticResource TextPrimaryColor}" />
+            <Setter Property="VerticalOptions" Value="Center" />
+            <Setter Property="LineBreakMode" Value="WordWrap" />
+        </Style>
+        <Style x:Key="TestResultStyle" TargetType="Label">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextColor" Value="{StaticResource NeutralTextColor}" />
+            <Setter Property="LineBreakMode" Value="WordWrap" />
+        </Style>
+        <Style x:Key="TechnicalNoteStyle" TargetType="Border">
+            <Setter Property="BackgroundColor" Value="{StaticResource FieldBackgroundColor}" />
+            <Setter Property="StrokeThickness" Value="0" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="StrokeShape">
+                <Setter.Value><RoundRectangle CornerRadius="8" /></Setter.Value>
+            </Setter>
+        </Style>
+    </ContentPage.Resources>
 
     <Grid RowDefinitions="*,Auto" RowSpacing="0">
-
         <ScrollView Grid.Row="0">
-            <VerticalStackLayout Spacing="12" Padding="12,12,12,4">
-
+            <VerticalStackLayout Spacing="12" Padding="12,12,12,16">
                 <!-- MQTT 配置（设置 PN） -->
-                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="MQTT 配置（设置 PN）" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
-                        <Label Text="服务器地址（IP 或域名，不带 http://）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding MqttHost}" FontSize="14" Placeholder="192.168.1.65" />
-                        <Label Text="端口" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding MqttPortText}" Keyboard="Numeric" MaxLength="5" FontSize="14" Placeholder="1883" />
-                        <Label Text="用户名" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding MqttUsername}" FontSize="14" Placeholder="dev" />
-                        <Label Text="密码" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding MqttPassword}" IsPassword="True" FontSize="14" />
-                        <Label Text="回执超时（秒，1~60，默认 5）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding MqttReplyTimeoutText}" Keyboard="Numeric" FontSize="14" Placeholder="5" />
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <VerticalStackLayout Style="{StaticResource SettingsStackStyle}">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="MQTT 配置" Style="{StaticResource SectionTitleStyle}" />
+                            <Label Text="通过网关设置储能设备 PN" Style="{StaticResource HelperTextStyle}" />
+                        </VerticalStackLayout>
+                        <Label Text="服务器地址（IP 或域名，不带 http://）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding MqttHost}" Style="{StaticResource SettingsEntryStyle}" Placeholder="192.168.1.65" />
+                        <Label Text="端口" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding MqttPortText}" Keyboard="Numeric" MaxLength="5"
+                               Style="{StaticResource SettingsEntryStyle}" Placeholder="1883" />
+                        <Label Text="用户名" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding MqttUsername}" Style="{StaticResource SettingsEntryStyle}" Placeholder="dev" />
+                        <Label Text="密码" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding MqttPassword}" IsPassword="True" Style="{StaticResource SettingsEntryStyle}" />
+                        <Label Text="回执超时（秒，1~60，默认 5）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding MqttReplyTimeoutText}" Keyboard="Numeric"
+                               Style="{StaticResource SettingsEntryStyle}" Placeholder="5" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                             <Label Text="{Binding MqttStateText}" FontSize="13" VerticalOptions="Center"
-                                   TextColor="{Binding MqttStateColor}" />
+                                   TextColor="{Binding MqttStateColor}" LineBreakMode="WordWrap" />
                             <Button Grid.Column="1" Text="测试 MQTT 连接" Command="{Binding TestMqttCommand}"
-                                    BackgroundColor="#E6F1FB" TextColor="#185FA5" CornerRadius="8"
-                                    FontSize="13" Padding="12,10" />
+                                    Style="{StaticResource InfoButtonStyle}" />
                         </Grid>
-                        <Label Text="{Binding MqttTestResult}" FontSize="12" TextColor="#5F5E5A"
+                        <Label Text="{Binding MqttTestResult}" Style="{StaticResource TestResultStyle}"
                                IsVisible="{Binding MqttTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
-                        <Label Text="发布主题 server/{网关ID}/cmd/set_pn，回执主题 device/{网关ID}/cmd/reply/pn；超过回执超时即判失败，不自动重发"
-                               FontSize="11" TextColor="#6B6B76" />
+                        <Border Style="{StaticResource TechnicalNoteStyle}">
+                            <Label Text="发布主题 server/{网关ID}/cmd/set_pn，回执主题 device/{网关ID}/cmd/reply/pn；超过回执超时即判失败，不自动重发"
+                                   Style="{StaticResource HelperTextStyle}" />
+                        </Border>
                     </VerticalStackLayout>
                 </Border>
 
                 <!-- 蓝牙（BLE）MAC 扫描 -->
-                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="蓝牙（BLE）MAC 扫描" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="提交前按 PN 扫描蓝牙取 MAC" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <VerticalStackLayout Style="{StaticResource SettingsStackStyle}">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="蓝牙（BLE）MAC 扫描" Style="{StaticResource SectionTitleStyle}" />
+                            <Label Text="提交前按设备广播名查找 MAC" Style="{StaticResource HelperTextStyle}" />
+                        </VerticalStackLayout>
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="提交前按 PN 扫描蓝牙取 MAC" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding BleScanEnabled}" />
                         </Grid>
-                        <Label Text="扫描超时（秒，1~15，默认 5）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding BleScanTimeoutText}" Keyboard="Numeric" FontSize="14" Placeholder="5" />
-                        <Label Text="信号门限 dBm（0 = 不过滤，或 -100 ~ -30，默认 0）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding BleMinRssiText}" Keyboard="Text" MaxLength="5" FontSize="14" Placeholder="-80" />
-                        <Label Text="MAC 缓存（秒，0~600，0 = 不缓存，默认 120）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding BleMacCacheSecondsText}" Keyboard="Numeric" FontSize="14" Placeholder="120" />
+                        <Label Text="扫描超时（秒，1~15，默认 5）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding BleScanTimeoutText}" Keyboard="Numeric"
+                               Style="{StaticResource SettingsEntryStyle}" Placeholder="5" />
+                        <Label Text="信号门限 dBm（0 = 不过滤，或 -100 ~ -30，默认 0）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding BleMinRssiText}" Keyboard="Text" MaxLength="5"
+                               Style="{StaticResource SettingsEntryStyle}" Placeholder="-80" />
+                        <Label Text="MAC 缓存（秒，0~600，0 = 不缓存，默认 120）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding BleMacCacheSecondsText}" Keyboard="Numeric"
+                               Style="{StaticResource SettingsEntryStyle}" Placeholder="120" />
                         <Button Text="扫描附近设备（3 秒）" Command="{Binding TestBleScanCommand}"
-                                BackgroundColor="#E1F5EE" TextColor="#0F6E56" CornerRadius="8" FontSize="13" Padding="12,10" />
-                        <Label Text="{Binding BleScanTestResult}" FontSize="11" TextColor="#5F5E5A"
-                               LineBreakMode="WordWrap"
+                                Style="{StaticResource InfoButtonStyle}" />
+                        <Label Text="{Binding BleScanTestResult}" Style="{StaticResource TestResultStyle}"
                                IsVisible="{Binding BleScanTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
-                        <Label Text="广播名等于 PN 时取 MAC 随 PN 下发（AddrType 固定 0）；门限只过滤候选、不影响下面诊断列表；名称可能只出现在扫描响应里，以“合并名”为准"
-                               FontSize="11" TextColor="#6B6B76" />
+                        <Border Style="{StaticResource TechnicalNoteStyle}">
+                            <Label Text="广播名等于 PN 时取 MAC 随 PN 下发（AddrType 固定 0）；门限只过滤候选、不影响下面诊断列表；名称可能只出现在扫描响应里，以“合并名”为准"
+                                   Style="{StaticResource HelperTextStyle}" />
+                        </Border>
                     </VerticalStackLayout>
                 </Border>
 
                 <!-- API 模式接口（老化架 / 点位下拉框数据源） -->
-                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="API 模式接口（选老化架 / 点位）" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
-                        <Label Text="老化架列表地址 RackPageList" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding RackPageListUrl}" Keyboard="Url" FontSize="13" />
-                        <Label Text="点位列表地址 AvailablePointList" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding AvailablePointListUrl}" Keyboard="Url" FontSize="13" />
-                        <Label Text="接口超时（秒，1~120）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding TimeoutSecondsText}" Keyboard="Numeric" FontSize="14" />
-                        <Label Text="成功业务码（响应体 code 字段，逗号分隔）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding ApiSuccessCodes}" FontSize="14" Placeholder="0,1,200" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="信任自签 HTTPS 证书" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <VerticalStackLayout Style="{StaticResource SettingsStackStyle}">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="API 模式接口" Style="{StaticResource SectionTitleStyle}" />
+                            <Label Text="提供老化架与点位下拉框数据" Style="{StaticResource HelperTextStyle}" />
+                        </VerticalStackLayout>
+                        <Label Text="老化架列表地址 RackPageList" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding RackPageListUrl}" Keyboard="Url"
+                               Style="{StaticResource SettingsEntryStyle}" FontSize="13" />
+                        <Label Text="点位列表地址 AvailablePointList" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding AvailablePointListUrl}" Keyboard="Url"
+                               Style="{StaticResource SettingsEntryStyle}" FontSize="13" />
+                        <Label Text="接口超时（秒，1~120）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding TimeoutSecondsText}" Keyboard="Numeric" Style="{StaticResource SettingsEntryStyle}" />
+                        <Label Text="成功业务码（响应体 code 字段，逗号分隔）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding ApiSuccessCodes}" Style="{StaticResource SettingsEntryStyle}" Placeholder="0,1,200" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="信任自签 HTTPS 证书" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding AllowInvalidCertificate}" />
                         </Grid>
                         <Button Text="测试老化架接口" Command="{Binding TestRackApiCommand}"
-                                BackgroundColor="#EEEDFE" TextColor="#534AB7" CornerRadius="8" FontSize="13" Padding="12,10" />
-                        <Label Text="{Binding RackTestResult}" FontSize="12" TextColor="#5F5E5A"
+                                Style="{StaticResource SecondaryButtonStyle}" />
+                        <Label Text="{Binding RackTestResult}" Style="{StaticResource TestResultStyle}"
                                IsVisible="{Binding RackTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
                     </VerticalStackLayout>
                 </Border>
 
                 <!-- Redis 配置 -->
-                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="Redis 在线校验配置" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
-                        <Label Text="连接串" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding RedisConnectionString}" FontSize="14" />
-                        <Label Text="在线列表 Key" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding OnlineListKey}" FontSize="14" />
-                        <Label Text="查询超时（毫秒，500~60000）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding RedisTimeoutMsText}" Keyboard="Numeric" FontSize="14" />
-                        <Label Text="在线列表缓存秒数（0 = 不缓存）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding OnlineCacheSecondsText}" Keyboard="Numeric" FontSize="14" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="Redis 不可用时允许强制提交" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <VerticalStackLayout Style="{StaticResource SettingsStackStyle}">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="Redis 在线校验" Style="{StaticResource SectionTitleStyle}" />
+                            <Label Text="写入前确认网关处于在线状态" Style="{StaticResource HelperTextStyle}" />
+                        </VerticalStackLayout>
+                        <Label Text="连接串" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding RedisConnectionString}" Style="{StaticResource SettingsEntryStyle}" />
+                        <Label Text="在线列表 Key" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding OnlineListKey}" Style="{StaticResource SettingsEntryStyle}" />
+                        <Label Text="查询超时（毫秒，500~60000）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding RedisTimeoutMsText}" Keyboard="Numeric" Style="{StaticResource SettingsEntryStyle}" />
+                        <Label Text="在线列表缓存秒数（0 = 不缓存）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding OnlineCacheSecondsText}" Keyboard="Numeric" Style="{StaticResource SettingsEntryStyle}" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="Redis 不可用时允许强制提交" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding AllowSubmitWhenRedisUnavailable}" />
                         </Grid>
                         <Button Text="测试 Redis 连接" Command="{Binding TestRedisCommand}"
-                                BackgroundColor="#EEEDFE" TextColor="#534AB7" CornerRadius="8" FontSize="13" Padding="12,10" />
-                        <Label Text="{Binding RedisTestResult}" FontSize="12" TextColor="#5F5E5A"
+                                Style="{StaticResource SecondaryButtonStyle}" />
+                        <Label Text="{Binding RedisTestResult}" Style="{StaticResource TestResultStyle}"
                                IsVisible="{Binding RedisTestResult, Converter={StaticResource StringNotEmptyConverter}}" />
                     </VerticalStackLayout>
                 </Border>
 
                 <!-- 扫码规则 -->
-                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="扫码识别规则" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
-                        <Label Text="储能设备字符串前缀（多个用逗号分隔）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding PnPrefixes}" FontSize="14" Placeholder="例如 PN" />
-                        <Label Text="{Binding PrefixHint}" FontSize="11" TextColor="#6B6B76" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="前缀匹配忽略大小写" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <VerticalStackLayout Style="{StaticResource SettingsStackStyle}">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="扫码识别规则" Style="{StaticResource SectionTitleStyle}" />
+                            <Label Text="配置 PN 前缀、网关 ID 与条码格式" Style="{StaticResource HelperTextStyle}" />
+                            <Label Text="PN 前缀、忽略大小写、纯数字后缀也可在扫码页「PN 过滤」快捷面板直接修改，保存后两处同步。"
+                                   Style="{StaticResource HelperTextStyle}" />
+                        </VerticalStackLayout>
+                        <Label Text="储能设备字符串前缀（多个用逗号分隔）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding PnPrefixes}" Style="{StaticResource SettingsEntryStyle}" Placeholder="例如 PN" />
+                        <Label Text="{Binding PrefixHint}" Style="{StaticResource HelperTextStyle}" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="前缀匹配忽略大小写" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding IgnorePnCase}" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="前缀后必须为纯数字（防误判）" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="前缀后必须为纯数字（防误判）" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding RequireNumericSuffix}" />
                         </Grid>
-                        <Label Text="网关 ID 校验正则（未命中前缀的码）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding GatewayPattern}" FontSize="13" />
-                        <Label Text="同一条码去重窗口（毫秒）" FontSize="12" TextColor="#6B6B76" />
-                        <Entry Text="{Binding ScanDedupMsText}" Keyboard="Numeric" FontSize="14" />
-                        <Label Text="条码格式" FontSize="12" TextColor="#6B6B76" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="识别一维码（Code128 / Code39 / EAN / UPC）" FontSize="13"
-                                   VerticalOptions="Center" TextColor="#1B1B1F" />
+                        <Label Text="网关 ID 校验正则（未命中前缀的码）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding GatewayPattern}" Style="{StaticResource SettingsEntryStyle}" FontSize="13" />
+                        <Label Text="同一条码去重窗口（毫秒）" Style="{StaticResource FieldLabelStyle}" />
+                        <Entry Text="{Binding ScanDedupMsText}" Keyboard="Numeric" Style="{StaticResource SettingsEntryStyle}" />
+                        <Label Text="条码格式" Style="{StaticResource FieldLabelStyle}" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="识别一维码（Code128 / Code39 / EAN / UPC）" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding Scan1D}" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="识别二维码（QR / DataMatrix / PDF417 / Aztec）" FontSize="13"
-                                   VerticalOptions="Center" TextColor="#1B1B1F" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="识别二维码（QR / DataMatrix / PDF417 / Aztec）" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding Scan2D}" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="强制先扫网关 ID" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="强制先扫网关 ID" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding RequireScanOrder}" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="同类型重复扫码时覆盖" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="同类型重复扫码时覆盖" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding OverwriteDuplicate}" />
                         </Grid>
                     </VerticalStackLayout>
                 </Border>
 
                 <!-- 行为 -->
-                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="行为" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="两个码扫满后自动提交" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <VerticalStackLayout Style="{StaticResource SettingsStackStyle}">
+                        <Label Text="行为" Style="{StaticResource SectionTitleStyle}" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="两个码扫满后自动提交" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding AutoSubmit}" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="写入成功后自动清空" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="写入成功后自动清空" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding AutoResetAfterSuccess}" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="声音与震动反馈" FontSize="13" VerticalOptions="Center" TextColor="#1B1B1F" />
+                        <Grid Style="{StaticResource SettingsSwitchRowStyle}">
+                            <Label Text="声音与震动反馈" Style="{StaticResource SettingsSwitchLabelStyle}" />
                             <Switch Grid.Column="1" IsToggled="{Binding SoundAndVibration}" />
                         </Grid>
                     </VerticalStackLayout>
                 </Border>
 
                 <!-- 维护 -->
-                <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="14,12">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="维护" FontSize="15" FontAttributes="Bold" TextColor="#1B1B1F" />
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <VerticalStackLayout Style="{StaticResource SettingsStackStyle}">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="维护" Style="{StaticResource SectionTitleStyle}" />
+                            <Label Text="备份配置或排查现场问题" Style="{StaticResource HelperTextStyle}" />
+                        </VerticalStackLayout>
                         <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
                             <Button Grid.Column="0" Text="导出配置" Command="{Binding ExportCommand}"
-                                    FontSize="12" Padding="6,10" BackgroundColor="#F1EFE8" TextColor="#5F5E5A" CornerRadius="8" />
+                                    Style="{StaticResource QuietButtonStyle}" FontSize="12" Padding="6,10" />
                             <Button Grid.Column="1" Text="导入配置" Command="{Binding ImportCommand}"
-                                    FontSize="12" Padding="6,10" BackgroundColor="#F1EFE8" TextColor="#5F5E5A" CornerRadius="8" />
+                                    Style="{StaticResource QuietButtonStyle}" FontSize="12" Padding="6,10" />
                             <Button Grid.Column="2" Text="查看日志" Command="{Binding ViewLogCommand}"
-                                    FontSize="12" Padding="6,10" BackgroundColor="#F1EFE8" TextColor="#5F5E5A" CornerRadius="8" />
+                                    Style="{StaticResource QuietButtonStyle}" FontSize="12" Padding="6,10" />
                         </Grid>
-                        <Button Text="恢复默认配置" Command="{Binding ResetCommand}"
-                                FontSize="13" Padding="12,10" BackgroundColor="#FCEBEB" TextColor="#A32D2D" CornerRadius="8" />
+                        <Button Text="恢复默认配置" Command="{Binding ResetCommand}" Style="{StaticResource DangerButtonStyle}" />
                     </VerticalStackLayout>
                 </Border>
             </VerticalStackLayout>
         </ScrollView>
 
-        <!-- 底部保存栏 -->
-        <VerticalStackLayout Grid.Row="1" Spacing="6" Padding="12,8,12,12" BackgroundColor="White">
-            <Label Text="{Binding VersionText}" FontSize="10" TextColor="#9A9AA4" HorizontalOptions="Center" />
+        <!-- 固定保存栏：状态信息不与主按钮争抢强调 -->
+        <VerticalStackLayout Grid.Row="1" Spacing="7" Padding="14,10,14,12" BackgroundColor="{StaticResource SurfaceColor}">
             <Label Text="{Binding StatusMessage}" FontSize="12" TextColor="{Binding StatusColor}"
-                   IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmptyConverter}}" />
-            <Button Text="保存配置" Command="{Binding SaveCommand}"
-                    BackgroundColor="#512BD4" TextColor="White" CornerRadius="10"
-                    Padding="12,16" FontSize="15" FontAttributes="Bold" />
+                   IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotEmptyConverter}}"
+                   LineBreakMode="TailTruncation" MaxLines="2" />
+            <Button Text="保存配置" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButtonStyle}" />
+            <Label Text="{Binding VersionText}" FontSize="10" TextColor="{StaticResource TextSecondaryColor}"
+                   HorizontalOptions="Center" LineBreakMode="TailTruncation" MaxLines="1" />
         </VerticalStackLayout>
     </Grid>
 </ContentPage>

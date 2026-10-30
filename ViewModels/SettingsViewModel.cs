@@ -32,8 +32,28 @@ public partial class SettingsViewModel : ObservableObject
 
         _mqttSetPnService.StateChanged += (_, _) => MainThread.BeginInvokeOnMainThread(RefreshMqttState);
 
+        // 主界面 PN 快捷面板保存后，设置页要同步这三个字段；
+        // 只同步扫码规则，避免把用户在本页尚未保存的其他编辑覆盖掉。
+        _configService.ConfigChanged += (_, _) =>
+            MainThread.BeginInvokeOnMainThread(SyncScanRuleFields);
+
         LoadFromConfig();
         RefreshMqttState();
+    }
+
+    /// <summary>只回显与主界面快捷面板共用的 PN 过滤字段</summary>
+    private void SyncScanRuleFields()
+    {
+        var c = _configService.Current;
+
+        if (!string.Equals(PnPrefixes, c.PnPrefixes, StringComparison.Ordinal))
+            PnPrefixes = c.PnPrefixes;
+
+        if (IgnorePnCase != c.IgnorePnCase)
+            IgnorePnCase = c.IgnorePnCase;
+
+        if (RequireNumericSuffix != c.RequireNumericSuffix)
+            RequireNumericSuffix = c.RequireNumericSuffix;
     }
 
     // ---------- 蓝牙（BLE） ----------

@@ -90,6 +90,47 @@ public sealed class BleScanner : IBleScanner
 #endif
     }
 
+    // ---------- 蓝牙开关状态 ----------
+
+    /// <summary>
+    /// 只读开关状态：不扫描、不申请权限、不消耗扫描配额。
+    /// Android 12+ 读开关需要 BLUETOOTH_CONNECT，未授权时退回系统全局项；
+    /// 两条路都失败就返回 Unknown，绝不把"读不到"误报成"未开启"。
+    /// </summary>
+    public BleState GetBluetoothState()
+    {
+#if ANDROID
+        try
+        {
+            var context = Platform.AppContext;
+
+            if (context.PackageManager?.HasSystemFeature(PackageManager.FeatureBluetoothLe) != true)
+                return BleState.NotSupported;
+
+            var adapter = ((BluetoothManager?)context.GetSystemService(Context.BluetoothService))?.Adapter;
+            if (adapter is null) return BleState.NotSupported;
+
+            try
+            {
+                return adapter.IsEnabled ? BleState.On : BleState.Off;
+            }
+            catch (Java.Lang.SecurityException)
+            {
+                // 未授予 BLUETOOTH_CONNECT：读系统全局项兜底，避免为检测先弹权限框
+                var value = Android.Provider.Settings.Global.GetInt(
+                    context.ContentResolver, "bluetooth_on", -1);
+                return value == 1 ? BleState.On : value == 0 ? BleState.Off : BleState.Unknown;
+            }
+        }
+        catch (Exception)
+        {
+            return BleState.Unknown;
+        }
+#else
+        return BleState.NotSupported;
+#endif
+    }
+
     // ---------- 按 PN 找 MAC ----------
 
     public async Task<BleScanResult> FindByAdvertisedNameAsync(

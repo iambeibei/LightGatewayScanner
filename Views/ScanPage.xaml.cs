@@ -18,6 +18,9 @@ public partial class ScanPage : ContentPage
 
     private bool _cameraPermissionGranted;
 
+    /// <summary>上次建相机时的条码格式：只有格式开关变化才重建，避免保存其他配置时画面闪断</summary>
+    private (bool Scan1D, bool Scan2D) _cameraFormats;
+
     public ScanPage(ScanViewModel viewModel, IAppConfigService configService)
     {
         InitializeComponent();
@@ -28,7 +31,7 @@ public partial class ScanPage : ContentPage
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
         // 设置里改了"识别一维码/二维码"开关后，重建相机让新格式生效
-        _configService.ConfigChanged += (_, _) => RebuildCameraForFormatChange();
+        _configService.ConfigChanged += OnConfigChangedForCamera;
 
         // API 模式的两个下拉框。ItemDisplayBinding 的绑定对象是列表元素而不是 ViewModel，
         // 放代码后置绑定可以绕开 XAML 编译期对绑定路径的类型检查（它不是 BindableProperty）。
@@ -44,6 +47,9 @@ public partial class ScanPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        // 用户可能刚从系统设置打开蓝牙再返回，这里刷新一次提示条
+        _viewModel.RefreshBluetoothBanner();
 
         if (!BarcodeScanning.IsSupported)
         {
@@ -118,10 +124,16 @@ public partial class ScanPage : ContentPage
         ReleaseCamera();
     }
 
-    /// <summary>设置里改了条码格式开关后，重建相机让新配置生效</summary>
-    private void RebuildCameraForFormatChange()
+    /// <summary>
+    /// 只有"识别一维码/二维码"开关变化才重建相机。
+    /// 保存 PN 过滤等其他配置也会触发 ConfigChanged，不能每次都闪断预览。
+    /// </summary>
+    private void OnConfigChangedForCamera(object? sender, EventArgs e)
     {
         if (_camera is null) return;
+
+        var config = _configService.Current;
+        if (config.Scan1D == _cameraFormats.Scan1D && config.Scan2D == _cameraFormats.Scan2D) return;
 
         ReleaseCamera();
         ApplyCameraState();
@@ -171,6 +183,9 @@ public partial class ScanPage : ContentPage
             _camera = camera;
             CameraHost.Content = camera;
             TorchButton.Text = "照明";
+
+            var config = _configService.Current;
+            _cameraFormats = (config.Scan1D, config.Scan2D);
         }
         catch (Exception)
         {
@@ -257,4 +272,15 @@ public partial class ScanPage : ContentPage
         // 兜底：权限是刚刚才拿到的场景，属性可能没变化，这里再同步一次
         ApplyCameraState();
     }
+
+    // ---------- PN 过滤快捷面板 ----------
+
+    private void OnPnPrefixCompleted(object? sender, EventArgs e)
+        => _viewModel.SavePnFilterCommand.Execute(null);
+
+    private void OnPnPrefixUnfocused(object? sender, FocusEventArgs e)
+        => _viewModel.SavePnFilterCommand.Execute(null);
+
+    private void OnPnFilterSwitchToggled(object? sender, ToggledEventArgs e)
+        => _viewModel.SavePnFilterCommand.Execute(null);
 }

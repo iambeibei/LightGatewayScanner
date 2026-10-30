@@ -24,6 +24,12 @@ public interface IBleScanner
     /// <summary>检查并按需申请蓝牙权限；返回 null 表示已授权，否则为中文原因</summary>
     Task<string?> EnsurePermissionsAsync(bool forceRequest = false);
 
+    /// <summary>
+    /// 轻量读取蓝牙开关状态：不扫描、不申请权限、不消耗 Android 扫描配额。
+    /// 用于启动检测与提示条刷新；无法判断时返回 <see cref="BleState.Unknown"/>，不抛异常。
+    /// </summary>
+    BleState GetBluetoothState();
+
     /// <summary>作废某个 PN 的 MAC 缓存（网关回执失败时调用，下次重新扫描）</summary>
     void InvalidateCache(string pn);
 }

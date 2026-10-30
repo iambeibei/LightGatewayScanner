@@ -1,282 +1,372 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:zxing="clr-namespace:ZXing.Net.Maui.Controls;assembly=ZXing.Net.MAUI.Controls"
              xmlns:vm="clr-namespace:LightGatewayScanner.ViewModels"
              x:Class="LightGatewayScanner.Views.ScanPage"
              x:DataType="vm:ScanViewModel"
              Title="扫码写入"
-             BackgroundColor="#F5F6F8">
+             BackgroundColor="{StaticResource AppBackgroundColor}">
 
     <ContentPage.Resources>
         <!-- 结果提示条：浮层与行内兜底共用同一套样式，改配色/字号只改这里 -->
         <Style x:Key="ResultBannerBorder" TargetType="Border">
             <Setter Property="StrokeThickness" Value="0" />
-            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Padding" Value="12,10" />
         </Style>
         <Style x:Key="ResultBannerLabel" TargetType="Label">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="TextColor" Value="White" />
-            <!-- 文案固定为三态短句，单行显示，超出时尾部截断而不是换行把浮层撑高 -->
             <Setter Property="LineBreakMode" Value="TailTruncation" />
             <Setter Property="MaxLines" Value="1" />
         </Style>
+        <Style x:Key="ResultTagStyle" TargetType="Border">
+            <Setter Property="Padding" Value="9,5" />
+            <Setter Property="StrokeThickness" Value="0" />
+            <Setter Property="VerticalOptions" Value="Center" />
+            <Setter Property="StrokeShape">
+                <Setter.Value><RoundRectangle CornerRadius="6" /></Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CameraToolButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="BackgroundColor" Value="#3A3A44" />
+            <Setter Property="TextColor" Value="White" />
+            <Setter Property="Padding" Value="6,9" />
+        </Style>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto"
+    <!-- 行序：标题 / 蓝牙提示 / PN 快捷 / 采集区 / 结果 / 状态 / 操作 / 相机兜底 -->
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto"
           RowSpacing="10"
           Padding="12,10,12,14">
 
-        <!-- 顶部标题栏 -->
+        <!-- 顶部保留模式与设置入口，标题及构建标记退居辅助层级 -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-            <VerticalStackLayout Spacing="2">
-                <Label Text="储能设备 PN 写入" FontSize="18" FontAttributes="Bold" TextColor="#1B1B1F" />
-                <Label Text="{Binding Subtitle}" FontSize="12" TextColor="#6B6B76" />
+            <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                <Label Text="储能设备 PN 写入" FontSize="20" FontAttributes="Bold"
+                       TextColor="{StaticResource TextPrimaryColor}" />
+                <Label Text="{Binding Subtitle}" Style="{StaticResource HelperTextStyle}"
+                       LineBreakMode="TailTruncation" MaxLines="1" />
             </VerticalStackLayout>
             <Button Grid.Column="1"
                     Text="{Binding ModeButtonText}"
                     Command="{Binding ToggleModeCommand}"
-                    Padding="10,6"
-                    FontSize="11"
-                    BackgroundColor="#EEEDFE"
-                    TextColor="#534AB7"
-                    CornerRadius="8"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    FontSize="11" Padding="10,7" MinimumHeightRequest="40"
                     VerticalOptions="Center" />
             <Button Grid.Column="2"
                     Text="设置"
                     Command="{Binding OpenSettingsCommand}"
-                    Padding="14,8"
-                    FontSize="13"
-                    BackgroundColor="#512BD4"
-                    TextColor="White"
-                    CornerRadius="8"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    FontSize="12" Padding="12,7" MinimumHeightRequest="40"
                     VerticalOptions="Center" />
         </Grid>
 
-        <!-- 采集区：API 模式面板（上，按内容高）+ 摄像头预览（下，占剩余空间），两者并存 -->
-        <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="8">
+        <!-- 蓝牙提示条：非阻塞常驻，点击才进入引导弹窗；开启蓝牙后自动消失 -->
+        <Border Grid.Row="1"
+                IsVisible="{Binding BluetoothOffBannerVisible}"
+                BackgroundColor="#FFF4E5"
+                Stroke="#F0D9B5"
+                StrokeThickness="1"
+                Padding="10,8">
+            <Border.StrokeShape><RoundRectangle CornerRadius="10" /></Border.StrokeShape>
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="9">
+                <Border WidthRequest="22" HeightRequest="22" VerticalOptions="Center"
+                        BackgroundColor="#F5C98A" StrokeThickness="0">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="11" /></Border.StrokeShape>
+                    <Label Text="!" FontSize="13" FontAttributes="Bold" TextColor="#7A4308"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                    <Label Text="蓝牙未开启" FontSize="13" FontAttributes="Bold" TextColor="#854F0B" />
+                    <Label Text="提交前将无法扫描设备 MAC，PN 仍可正常写入"
+                           FontSize="11" TextColor="#854F0B" LineBreakMode="TailTruncation" MaxLines="1" />
+                </VerticalStackLayout>
+                <Button Grid.Column="2" Text="去开启"
+                        Command="{Binding ShowBluetoothGuideCommand}"
+                        Style="{StaticResource InfoButtonStyle}"
+                        FontSize="11" Padding="10,5" MinimumHeightRequest="34"
+                        VerticalOptions="Center" />
+            </Grid>
+        </Border>
 
-            <!-- API 模式面板：选老化架 → 选点位（相机保持开启，用来扫储能 PN） -->
+        <!-- PN 过滤快捷面板：默认收起，保存即生效并与设置页同步 -->
+        <Border Grid.Row="2"
+                BackgroundColor="{StaticResource SurfaceColor}"
+                Stroke="{StaticResource BorderColor}"
+                StrokeThickness="1"
+                Padding="12,9">
+            <Border.StrokeShape><RoundRectangle CornerRadius="10" /></Border.StrokeShape>
+            <VerticalStackLayout Spacing="8">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                        <Label Text="PN 过滤" FontSize="13" FontAttributes="Bold"
+                               TextColor="{StaticResource TextPrimaryColor}" />
+                        <Label Text="{Binding PnPrefixSummary}" Style="{StaticResource HelperTextStyle}"
+                               LineBreakMode="TailTruncation" MaxLines="1" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1" Text="{Binding PnPanelToggleText}"
+                            Command="{Binding TogglePnPanelCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            FontSize="11" Padding="12,6" MinimumHeightRequest="34"
+                            VerticalOptions="Center" />
+                </Grid>
+
+                <VerticalStackLayout Spacing="8" IsVisible="{Binding IsPnPanelExpanded}">
+                    <Label Text="储能设备字符串前缀（多个用逗号分隔）" Style="{StaticResource FieldLabelStyle}" Margin="0" />
+                    <Entry Text="{Binding PnPrefixesQuick}"
+                           Style="{StaticResource FieldEntryStyle}"
+                           Placeholder="例如 PN"
+                           Completed="OnPnPrefixCompleted"
+                           Unfocused="OnPnPrefixUnfocused" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <Grid Grid.Column="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Label Text="前缀匹配忽略大小写" FontSize="12"
+                                   TextColor="{StaticResource TextPrimaryColor}"
+                                   VerticalOptions="Center" LineBreakMode="WordWrap" />
+                            <Switch Grid.Column="1" IsToggled="{Binding IgnorePnCaseQuick}"
+                                    Toggled="OnPnFilterSwitchToggled" />
+                        </Grid>
+                        <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Label Text="前缀后必须为纯数字" FontSize="12"
+                                   TextColor="{StaticResource TextPrimaryColor}"
+                                   VerticalOptions="Center" LineBreakMode="WordWrap" />
+                            <Switch Grid.Column="1" IsToggled="{Binding RequireNumericSuffixQuick}"
+                                    Toggled="OnPnFilterSwitchToggled" />
+                        </Grid>
+                    </Grid>
+                    <Label Text="{Binding PnQuickStatus}" FontSize="11"
+                           TextColor="{StaticResource SuccessColor}"
+                           IsVisible="{Binding PnQuickStatus, Converter={StaticResource StringNotEmptyConverter}}" />
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- 采集区：API 面板占独立行，相机独占剩余行，避免被面板压缩 -->
+        <Grid Grid.Row="3" RowDefinitions="Auto,*" RowSpacing="8">
             <Border Grid.Row="0"
                     IsVisible="{Binding IsApiMode}"
-                    BackgroundColor="White"
-                    Stroke="#DCDCE4"
-                    StrokeThickness="1"
-                    Padding="10,8"
+                    Style="{StaticResource CardStyle}"
+                    Padding="12,10"
                     VerticalOptions="Start">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="12" />
-                </Border.StrokeShape>
-                <VerticalStackLayout Spacing="6">
+                <VerticalStackLayout Spacing="7">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <Label Text="API 模式：老化架 → 点位（deviceId = 网关 ID）" FontSize="12"
-                               FontAttributes="Bold" TextColor="#1B1B1F" VerticalOptions="Center"
-                               LineBreakMode="TailTruncation" />
+                        <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                            <Label Text="选择老化架与点位" FontSize="14" FontAttributes="Bold"
+                                   TextColor="{StaticResource TextPrimaryColor}" />
+                            <Label Text="点位的 deviceId 即网关 ID" Style="{StaticResource HelperTextStyle}" />
+                        </VerticalStackLayout>
                         <Button Grid.Column="1" Text="刷新" Command="{Binding LoadRacksCommand}"
-                                FontSize="11" Padding="8,4" CornerRadius="6"
-                                BackgroundColor="#E6F1FB" TextColor="#185FA5" />
+                                Style="{StaticResource InfoButtonStyle}"
+                                FontSize="12" Padding="12,6" MinimumHeightRequest="38" />
                     </Grid>
 
-                    <!-- 两个下拉框并排：左=老化架，右=点位（联动，先选老化架才有数据） -->
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                        <VerticalStackLayout Grid.Column="0" Spacing="2">
-                            <Label Text="老化架" FontSize="10" TextColor="#6B6B76" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <VerticalStackLayout Grid.Column="0" Spacing="3">
+                            <Label Text="老化架" Style="{StaticResource FieldLabelStyle}" Margin="0" />
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
-                                <Picker x:Name="RackPicker" Title="请选择" FontSize="13" />
+                                <Picker x:Name="RackPicker" Title="请选择" Style="{StaticResource FieldPickerStyle}" />
                                 <ActivityIndicator Grid.Column="1" IsRunning="{Binding IsRackLoading}"
-                                                   IsVisible="{Binding IsRackLoading}" Color="#512BD4"
+                                                   IsVisible="{Binding IsRackLoading}" Color="{StaticResource Primary}"
                                                    VerticalOptions="Center" />
                             </Grid>
                         </VerticalStackLayout>
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="点位（层号+序号）" FontSize="10" TextColor="#6B6B76" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="3">
+                            <Label Text="点位（层号 + 序号）" Style="{StaticResource FieldLabelStyle}" Margin="0" />
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
-                                <Picker x:Name="PointPicker" Title="先选老化架" FontSize="13" />
+                                <Picker x:Name="PointPicker" Title="先选老化架" Style="{StaticResource FieldPickerStyle}" />
                                 <ActivityIndicator Grid.Column="1" IsRunning="{Binding IsPointLoading}"
-                                                   IsVisible="{Binding IsPointLoading}" Color="#512BD4"
+                                                   IsVisible="{Binding IsPointLoading}" Color="{StaticResource Primary}"
                                                    VerticalOptions="Center" />
                             </Grid>
                         </VerticalStackLayout>
                     </Grid>
 
-                    <Label Text="{Binding RackHint}" FontSize="11" TextColor="#3B6D11"
+                    <Label Text="{Binding RackHint}" FontSize="11" TextColor="{StaticResource SuccessColor}"
                            IsVisible="{Binding RackHint, Converter={StaticResource StringNotEmptyConverter}}" />
-                    <Label Text="{Binding RackError}" FontSize="11" TextColor="#A32D2D"
+                    <Label Text="{Binding RackError}" FontSize="11" TextColor="{StaticResource ErrorColor}"
                            IsVisible="{Binding RackError, Converter={StaticResource StringNotEmptyConverter}}" />
                     <Button Text="重试加载老化架" Command="{Binding LoadRacksCommand}"
                             IsVisible="{Binding RackError, Converter={StaticResource StringToBoolConverter}}"
-                            FontSize="11" Padding="8,4" CornerRadius="6" HorizontalOptions="Start"
-                            BackgroundColor="#FCEBEB" TextColor="#A32D2D" />
+                            Style="{StaticResource DangerButtonStyle}" HorizontalOptions="Start"
+                            FontSize="11" Padding="10,5" MinimumHeightRequest="36" />
 
-                    <Label Text="{Binding PointHint}" FontSize="11" TextColor="#3B6D11"
+                    <Label Text="{Binding PointHint}" FontSize="11" TextColor="{StaticResource SuccessColor}"
                            IsVisible="{Binding PointHint, Converter={StaticResource StringNotEmptyConverter}}" />
-                    <Label Text="{Binding PointError}" FontSize="11" TextColor="#A32D2D"
+                    <Label Text="{Binding PointError}" FontSize="11" TextColor="{StaticResource ErrorColor}"
                            IsVisible="{Binding PointError, Converter={StaticResource StringNotEmptyConverter}}" />
                     <Button Text="重试加载点位" Command="{Binding LoadPointsCommand}"
                             IsVisible="{Binding PointError, Converter={StaticResource StringToBoolConverter}}"
-                            FontSize="11" Padding="8,4" CornerRadius="6" HorizontalOptions="Start"
-                            BackgroundColor="#FCEBEB" TextColor="#A32D2D" />
+                            Style="{StaticResource DangerButtonStyle}" HorizontalOptions="Start"
+                            FontSize="11" Padding="10,5" MinimumHeightRequest="36" />
                 </VerticalStackLayout>
             </Border>
 
-            <!-- 未配置储能设备字符串前缀提示 -->
             <Border Grid.Row="1"
                     IsVisible="{Binding IsConfigured, Converter={StaticResource InvertedBoolConverter}}"
-                    BackgroundColor="#FCEBEB"
-                    Stroke="#A32D2D"
+                    BackgroundColor="{StaticResource ErrorSoftColor}"
+                    Stroke="{StaticResource ErrorColor}"
                     StrokeThickness="1"
-                    Padding="12"
+                    Padding="14"
                     VerticalOptions="Start">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="10" />
-                </Border.StrokeShape>
-                <VerticalStackLayout Spacing="8">
+                <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                <VerticalStackLayout Spacing="10">
                     <Label Text="{Binding ConfigHint}" FontSize="13" TextColor="#791F1F" />
                     <Button Text="前往设置" Command="{Binding OpenSettingsCommand}"
-                            BackgroundColor="#A32D2D" TextColor="White" CornerRadius="8"
-                            HorizontalOptions="Start" Padding="16,8" FontSize="13" />
+                            Style="{StaticResource DangerButtonStyle}" HorizontalOptions="Start" />
                 </VerticalStackLayout>
             </Border>
 
-            <!-- 摄像头预览 -->
+            <!-- 相机器件仍由代码创建和释放；取景框及提示只是覆盖层 -->
             <Border Grid.Row="1"
                     IsVisible="{Binding CameraVisible}"
-                    MinimumHeightRequest="160"
-                    Stroke="#C8C8D0"
-                    StrokeThickness="1"
+                    MinimumHeightRequest="150"
+                    StrokeThickness="0"
                     Padding="0"
                     BackgroundColor="#1B1B1F">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="12" />
-                </Border.StrokeShape>
+                <Border.StrokeShape><RoundRectangle CornerRadius="14" /></Border.StrokeShape>
                 <Grid RowDefinitions="*,Auto">
-                    <!-- 相机器件由代码动态创建/销毁，关闭时才能真正释放摄像头 -->
+                    <!-- 只占预览行，不再跨到工具栏行：跨行会让 Grid 把工具栏高度重复计入，
+                         API 面板出现、可用高度变小时预览被压扁、工具按钮被盖住 -->
                     <ContentView x:Name="CameraHost" Grid.Row="0" />
 
-                    <!-- 提交结果浮层：叠在预览底部，不参与布局测量，所以不会压缩画面；
-                         InputTransparent 让点击穿透，不影响下方工具条按钮 -->
+                    <!-- 取景框按可用空间比例定位，去掉固定宽高与外边距，
+                         小屏或 API 模式下不会溢出到工具栏/结果卡上 -->
+                    <Grid Grid.Row="0"
+                          Margin="18,16,18,12"
+                          InputTransparent="True">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="0.18*" />
+                            <ColumnDefinition Width="0.64*" />
+                            <ColumnDefinition Width="0.18*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="0.14*" />
+                            <RowDefinition Height="0.72*" />
+                            <RowDefinition Height="0.14*" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="1" Grid.Column="1"
+                                BackgroundColor="Transparent"
+                                Stroke="#CCFFFFFF"
+                                StrokeThickness="2">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Row="0"
+                            Margin="14"
+                            Padding="10,6"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Start"
+                            BackgroundColor="#CC1B1B1F"
+                            StrokeThickness="0"
+                            InputTransparent="True">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                        <Label Text="{Binding StatusText}" FontSize="12" TextColor="White"
+                               HorizontalTextAlignment="Center" LineBreakMode="TailTruncation" MaxLines="1" />
+                    </Border>
+
+                    <!-- 结果浮层不压缩预览，也不阻挡相机工具按钮 -->
                     <Border Grid.Row="0"
                             Style="{StaticResource ResultBannerBorder}"
                             BackgroundColor="{Binding ResultColor}"
                             IsVisible="{Binding ResultOverlayVisible}"
                             InputTransparent="True"
                             ZIndex="10"
-                            Margin="8"
+                            Margin="10"
                             HorizontalOptions="Fill"
                             VerticalOptions="End">
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="10" />
-                        </Border.StrokeShape>
+                        <Border.StrokeShape><RoundRectangle CornerRadius="10" /></Border.StrokeShape>
                         <Label Text="{Binding ResultText}" Style="{StaticResource ResultBannerLabel}" />
                     </Border>
 
-                    <HorizontalStackLayout Grid.Row="1" Spacing="8" Padding="8" BackgroundColor="#2A2A32">
-                        <Button x:Name="TorchButton" Text="照明" Clicked="OnTorchClicked"
-                                Padding="14,6" FontSize="12" CornerRadius="6"
-                                BackgroundColor="#3A3A44" TextColor="White" />
-                        <Button x:Name="CameraToggleButton" Text="{Binding CameraButtonText}" Clicked="OnCameraToggleClicked"
-                                Padding="14,6" FontSize="12" CornerRadius="6"
-                                BackgroundColor="#3A3A44" TextColor="White" />
-                        <Button Text="手动输入" Command="{Binding ManualInputCommand}"
-                                Padding="14,6" FontSize="12" CornerRadius="6"
-                                BackgroundColor="#3A3A44" TextColor="White" />
-                    </HorizontalStackLayout>
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*,*" ColumnSpacing="8"
+                          Padding="10" BackgroundColor="#E62A2A32">
+                        <Button Grid.Column="0" x:Name="TorchButton" Text="照明" Clicked="OnTorchClicked"
+                                Style="{StaticResource CameraToolButtonStyle}" />
+                        <Button Grid.Column="1" x:Name="CameraToggleButton" Text="{Binding CameraButtonText}"
+                                Clicked="OnCameraToggleClicked" Style="{StaticResource CameraToolButtonStyle}" />
+                        <Button Grid.Column="2" Text="手动输入" Command="{Binding ManualInputCommand}"
+                                Style="{StaticResource CameraToolButtonStyle}" />
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>
 
-        <!-- 扫码结果卡片 -->
-        <VerticalStackLayout Grid.Row="2" Spacing="8">
-            <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="12,10">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="12" />
-                </Border.StrokeShape>
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                    <Border Grid.Column="0" BackgroundColor="#E6F1FB" Padding="8,4" StrokeThickness="0">
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="6" />
-                        </Border.StrokeShape>
-                        <Label Text="网关 ID" FontSize="11" TextColor="#185FA5" />
-                    </Border>
-                    <Label Grid.Column="1"
-                           Text="{Binding GatewayDisplay}"
-                           FontSize="20"
-                           FontAttributes="Bold"
-                           TextColor="#1B1B1F"
-                           VerticalOptions="Center"
-                           LineBreakMode="CharacterWrap" />
-                    <Border Grid.Column="2" BackgroundColor="{Binding OnlineColor}" Padding="10,4" StrokeThickness="0"
-                            MinimumWidthRequest="62">
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="10" />
-                        </Border.StrokeShape>
-                        <Label Text="{Binding OnlineText}" FontSize="12" TextColor="White"
-                               HorizontalOptions="Center" VerticalOptions="Center" />
-                    </Border>
-                </Grid>
-            </Border>
+        <!-- 两项结果同卡核对，网关在线状态保留在对应行 -->
+        <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="14,10">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto"
+                  ColumnSpacing="10" RowSpacing="8">
+                <Label Grid.Row="0" Grid.Column="0" Text="本次写入"
+                       FontSize="13" FontAttributes="Bold" TextColor="{StaticResource TextPrimaryColor}" />
+                <Label Grid.Row="0" Grid.Column="2" Text="核对后提交"
+                       Style="{StaticResource HelperTextStyle}" HorizontalTextAlignment="End" />
 
-            <Border BackgroundColor="White" Stroke="#DCDCE4" StrokeThickness="1" Padding="12,10">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="12" />
-                </Border.StrokeShape>
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                    <Border Grid.Column="0" BackgroundColor="#EEEDFE" Padding="8,4" StrokeThickness="0">
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="6" />
-                        </Border.StrokeShape>
-                        <Label Text="储能 PN" FontSize="11" TextColor="#534AB7" />
-                    </Border>
-                    <Label Grid.Column="1"
-                           Text="{Binding PnDisplay}"
-                           FontSize="20"
-                           FontAttributes="Bold"
-                           TextColor="#1B1B1F"
-                           VerticalOptions="Center"
-                           LineBreakMode="CharacterWrap" />
-                </Grid>
-            </Border>
-        </VerticalStackLayout>
+                <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource ResultTagStyle}"
+                        BackgroundColor="{StaticResource InfoSoftColor}">
+                    <Label Text="网关 ID" FontSize="11" TextColor="{StaticResource InfoTextColor}" />
+                </Border>
+                <Label Grid.Row="1" Grid.Column="1"
+                       Text="{Binding GatewayDisplay}"
+                       FontSize="18" FontAttributes="Bold"
+                       TextColor="{StaticResource TextPrimaryColor}"
+                       VerticalOptions="Center" LineBreakMode="CharacterWrap" />
+                <Border Grid.Row="1" Grid.Column="2" BackgroundColor="{Binding OnlineColor}"
+                        Padding="10,5" StrokeThickness="0" MinimumWidthRequest="64" VerticalOptions="Center">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="10" /></Border.StrokeShape>
+                    <Label Text="{Binding OnlineText}" FontSize="11" TextColor="White"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
 
-        <!-- 状态与结果 -->
-        <VerticalStackLayout Grid.Row="3" Spacing="8">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <Label Text="{Binding StatusText}" FontSize="14" TextColor="{Binding StatusColor}"
-                       VerticalOptions="Center" LineBreakMode="WordWrap" />
-                <ActivityIndicator Grid.Column="0" IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
-                                   HorizontalOptions="End" Color="#512BD4" />
+                <BoxView Grid.Row="2" Grid.ColumnSpan="3" HeightRequest="1"
+                         Color="{StaticResource BorderColor}" Opacity="0.6" />
+                <Border Grid.Row="3" Grid.Column="0" Style="{StaticResource ResultTagStyle}"
+                        BackgroundColor="{StaticResource AccentSoftColor}">
+                    <Label Text="储能 PN" FontSize="11" TextColor="{StaticResource AccentTextColor}" />
+                </Border>
+                <Label Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
+                       Text="{Binding PnDisplay}"
+                       FontSize="18" FontAttributes="Bold"
+                       TextColor="{StaticResource TextPrimaryColor}"
+                       VerticalOptions="Center" LineBreakMode="CharacterWrap" />
             </Grid>
+        </Border>
 
-            <Label Text="{Binding ArmHint}" FontSize="12" TextColor="#185FA5"
+        <VerticalStackLayout Grid.Row="5" Spacing="6">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <Label Text="{Binding StatusText}" FontSize="13" TextColor="{Binding StatusColor}"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" />
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
+                                   HorizontalOptions="End" VerticalOptions="Center"
+                                   Color="{StaticResource Primary}" />
+            </Grid>
+            <Label Text="{Binding ArmHint}" FontSize="12" TextColor="{StaticResource InfoTextColor}"
                    IsVisible="{Binding ArmHint, Converter={StaticResource StringNotEmptyConverter}}" />
 
-            <!-- 行内兜底：相机不可见时没有预览可叠，结果条回到这里显示 -->
+            <!-- 相机不可见时，结果条回退到行内显示 -->
             <Border Style="{StaticResource ResultBannerBorder}"
                     BackgroundColor="{Binding ResultColor}"
                     IsVisible="{Binding ResultInlineVisible}">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="10" />
-                </Border.StrokeShape>
+                <Border.StrokeShape><RoundRectangle CornerRadius="10" /></Border.StrokeShape>
                 <Label Text="{Binding ResultText}" Style="{StaticResource ResultBannerLabel}" />
             </Border>
         </VerticalStackLayout>
 
-        <!-- 操作按钮 -->
-        <Grid Grid.Row="4" ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
-            <Button Grid.Column="0" Text="扫网关" Command="{Binding ArmGatewayCommand}"
-                    Padding="6,14" FontSize="13" BackgroundColor="#E6F1FB" TextColor="#185FA5" CornerRadius="10" />
-            <Button Grid.Column="1" Text="扫 PN" Command="{Binding ArmPnCommand}"
-                    Padding="6,14" FontSize="13" BackgroundColor="#EEEDFE" TextColor="#534AB7" CornerRadius="10" />
-            <Button Grid.Column="2" Text="清空" Command="{Binding ResetCommand}"
-                    Padding="6,14" FontSize="13" BackgroundColor="#F1EFE8" TextColor="#5F5E5A" CornerRadius="10" />
-            <Button Grid.Column="3" Text="提交" Command="{Binding SubmitNowCommand}"
-                    IsEnabled="{Binding CanSubmit}"
-                    Padding="6,14" FontSize="13" BackgroundColor="#512BD4" TextColor="White" CornerRadius="10" />
+        <!-- 次要操作同行，提交作为唯一高强调主操作 -->
+        <Grid Grid.Row="6" RowDefinitions="Auto,Auto" ColumnDefinitions="*,*,*"
+              ColumnSpacing="8" RowSpacing="8">
+            <Button Grid.Row="0" Grid.Column="0" Text="扫网关" Command="{Binding ArmGatewayCommand}"
+                    Style="{StaticResource InfoButtonStyle}" />
+            <Button Grid.Row="0" Grid.Column="1" Text="扫 PN" Command="{Binding ArmPnCommand}"
+                    Style="{StaticResource SecondaryButtonStyle}" />
+            <Button Grid.Row="0" Grid.Column="2" Text="清空" Command="{Binding ResetCommand}"
+                    Style="{StaticResource QuietButtonStyle}" />
+            <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                    Text="提交写入" Command="{Binding SubmitNowCommand}"
+                    IsEnabled="{Binding CanSubmit}" Style="{StaticResource PrimaryButtonStyle}" />
         </Grid>
 
-        <!-- 相机关闭时，用底部独立一行的按钮重新打开预览（扫码模式专属） -->
-        <Button Grid.Row="5" Text="{Binding CameraButtonText}" Clicked="OnCameraToggleClicked"
-                IsVisible="{Binding ShowCameraToggle}"
-                Padding="16,10" FontSize="13" BackgroundColor="#E6F1FB" TextColor="#185FA5" CornerRadius="10" />
+        <Button Grid.Row="7" Text="{Binding CameraButtonText}" Clicked="OnCameraToggleClicked"
+                IsVisible="{Binding ShowCameraToggle}" Style="{StaticResource InfoButtonStyle}" />
     </Grid>
 </ContentPage>

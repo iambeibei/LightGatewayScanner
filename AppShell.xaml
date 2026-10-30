@@ -9,7 +9,8 @@
        Shell.TitleColor="White"
        Shell.TabBarBackgroundColor="White"
        Shell.TabBarTitleColor="#512BD4"
-       Shell.TabBarUnselectedColor="#8A8A94">
+       Shell.TabBarUnselectedColor="#6B6B76"
+       Shell.NavBarHasShadow="False">
 
     <TabBar>
         <ShellContent Title="扫码"
