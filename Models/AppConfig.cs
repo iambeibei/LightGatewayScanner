@@ -39,7 +39,7 @@ public sealed class AppConfig
     public const string DefaultAvailablePointListUrl = "http://192.168.1.65:11282/DeviceServiceCallback/AvailablePointList";
 
     /// <summary>构建标记，显示在设置页，用于确认手机装的是哪一版</summary>
-    public const string BuildTag = "2026-10-28.2";
+    public const string BuildTag = "2026-10-29.1";
 
     public int ConfigVersion { get; set; } = CurrentVersion;
 

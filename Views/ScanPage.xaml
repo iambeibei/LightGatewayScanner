@@ -8,6 +8,21 @@
              Title="扫码写入"
              BackgroundColor="#F5F6F8">
 
+    <ContentPage.Resources>
+        <!-- 结果提示条：浮层与行内兜底共用同一套样式，改配色/字号只改这里 -->
+        <Style x:Key="ResultBannerBorder" TargetType="Border">
+            <Setter Property="StrokeThickness" Value="0" />
+            <Setter Property="Padding" Value="12,8" />
+        </Style>
+        <Style x:Key="ResultBannerLabel" TargetType="Label">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="TextColor" Value="White" />
+            <!-- 文案固定为三态短句，单行显示，超出时尾部截断而不是换行把浮层撑高 -->
+            <Setter Property="LineBreakMode" Value="TailTruncation" />
+            <Setter Property="MaxLines" Value="1" />
+        </Style>
+    </ContentPage.Resources>
+
     <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto"
           RowSpacing="10"
           Padding="12,10,12,14">
@@ -126,6 +141,7 @@
             <!-- 摄像头预览 -->
             <Border Grid.Row="1"
                     IsVisible="{Binding CameraVisible}"
+                    MinimumHeightRequest="160"
                     Stroke="#C8C8D0"
                     StrokeThickness="1"
                     Padding="0"
@@ -136,6 +152,24 @@
                 <Grid RowDefinitions="*,Auto">
                     <!-- 相机器件由代码动态创建/销毁，关闭时才能真正释放摄像头 -->
                     <ContentView x:Name="CameraHost" Grid.Row="0" />
+
+                    <!-- 提交结果浮层：叠在预览底部，不参与布局测量，所以不会压缩画面；
+                         InputTransparent 让点击穿透，不影响下方工具条按钮 -->
+                    <Border Grid.Row="0"
+                            Style="{StaticResource ResultBannerBorder}"
+                            BackgroundColor="{Binding ResultColor}"
+                            IsVisible="{Binding ResultOverlayVisible}"
+                            InputTransparent="True"
+                            ZIndex="10"
+                            Margin="8"
+                            HorizontalOptions="Fill"
+                            VerticalOptions="End">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="10" />
+                        </Border.StrokeShape>
+                        <Label Text="{Binding ResultText}" Style="{StaticResource ResultBannerLabel}" />
+                    </Border>
+
                     <HorizontalStackLayout Grid.Row="1" Spacing="8" Padding="8" BackgroundColor="#2A2A32">
                         <Button x:Name="TorchButton" Text="照明" Clicked="OnTorchClicked"
                                 Padding="14,6" FontSize="12" CornerRadius="6"
@@ -216,19 +250,14 @@
             <Label Text="{Binding ArmHint}" FontSize="12" TextColor="#185FA5"
                    IsVisible="{Binding ArmHint, Converter={StaticResource StringNotEmptyConverter}}" />
 
-            <Border IsVisible="{Binding ResultVisible}"
+            <!-- 行内兜底：相机不可见时没有预览可叠，结果条回到这里显示 -->
+            <Border Style="{StaticResource ResultBannerBorder}"
                     BackgroundColor="{Binding ResultColor}"
-                    StrokeThickness="0"
-                    Padding="12,10">
+                    IsVisible="{Binding ResultInlineVisible}">
                 <Border.StrokeShape>
                     <RoundRectangle CornerRadius="10" />
                 </Border.StrokeShape>
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="{Binding ResultText}" FontSize="14" TextColor="White" LineBreakMode="WordWrap" />
-                    <Label Text="{Binding ResultDetail}" FontSize="11" TextColor="#FFFFFF"
-                           Opacity="0.85" LineBreakMode="WordWrap"
-                           IsVisible="{Binding ResultDetail, Converter={StaticResource StringNotEmptyConverter}}" />
-                </VerticalStackLayout>
+                <Label Text="{Binding ResultText}" Style="{StaticResource ResultBannerLabel}" />
             </Border>
         </VerticalStackLayout>
 

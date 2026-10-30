@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LightGatewayScanner.Models;
 using LightGatewayScanner.Services;
+using Microsoft.Maui.ApplicationModel;
 
 namespace LightGatewayScanner.ViewModels;
 
@@ -15,6 +16,9 @@ public partial class ScanViewModel : ObservableObject
     private readonly IDeviceCallbackApiService _deviceCallbackApi;
 
     private CancellationTokenSource? _submitCts;
+
+    /// <summary>结果条代际：旧的成功提示延时任务不得把新结果条隐藏掉</summary>
+    private int _resultGeneration;
 
     /// <summary>点位接口的请求代际：快速切换老化架时丢弃过期响应</summary>
     private int _pointLoadGeneration;
@@ -54,16 +58,29 @@ public partial class ScanViewModel : ObservableObject
 
     [ObservableProperty] private string? resultText;
     [ObservableProperty] private Color resultColor = Colors.Gray;
-    [ObservableProperty] private bool resultVisible;
-    [ObservableProperty] private string? resultDetail;
+
+    // 结果条有浮层（相机可见时叠在预览底部）与行内（相机不可见时兜底）两个落点，
+    // 由 ResultVisible + CameraVisible 组合决定，所以两者变化都要通知这两个派生属性。
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ResultOverlayVisible))]
+    [NotifyPropertyChangedFor(nameof(ResultInlineVisible))]
+    private bool resultVisible;
 
     [ObservableProperty] private bool isBusy;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CameraButtonText))]
     [NotifyPropertyChangedFor(nameof(ShowCameraToggle))]
+    [NotifyPropertyChangedFor(nameof(ResultOverlayVisible))]
+    [NotifyPropertyChangedFor(nameof(ResultInlineVisible))]
     private bool cameraVisible = true;
 
     public string CameraButtonText => CameraVisible ? "关闭相机" : "打开相机";
+
+    /// <summary>结果条浮层：相机可见时叠在预览底部，不参与布局测量，避免压缩画面</summary>
+    public bool ResultOverlayVisible => ResultVisible && CameraVisible;
+
+    /// <summary>结果条行内兜底：相机不可见时没有浮层可叠，回到状态区显示</summary>
+    public bool ResultInlineVisible => ResultVisible && !CameraVisible;
 
     // ---------- 网关 ID 输入模式（扫码 / API 二选一，默认扫码） ----------
 
@@ -132,9 +149,7 @@ public partial class ScanViewModel : ObservableObject
     {
         _submitCts?.Cancel();
         ClearSessionState();
-        ResultVisible = false;
-        ResultText = null;
-        ResultDetail = null;
+        HideResult();
 
         // API 模式：同时清掉两个下拉框的选中项（列表保留，选同一老化架不必重新请求）
         SelectedPoint = null;
@@ -493,7 +508,7 @@ public partial class ScanViewModel : ObservableObject
 
         IsBusy = true;
         CanSubmit = false;
-        ResultVisible = false;
+        HideResult();
         StatusText = "正在校验网关在线状态…";
         StatusColor = Color.FromArgb("#185FA5");
         OnlineText = "校验中…";
@@ -518,10 +533,17 @@ public partial class ScanViewModel : ObservableObject
 
             ApplyOnlineStatus(outcome.OnlineStatus);
 
-            ResultText = outcome.Message;
-            ResultDetail = BuildResultDetail(outcome);
-            ResultVisible = true;
+            ResultText = BuildResultText(outcome);
             ResultColor = outcome.Success ? Color.FromArgb("#3B6D11") : Color.FromArgb("#A32D2D");
+            ResultVisible = true;
+            ScheduleResultAutoHide(outcome.Success);
+
+            // 界面只给三态结论，失败原因与诊断细节全部落到日志，现场排查仍可拉日志对照
+            await _logService.WriteAsync(
+                $"提交结果 {(outcome.Success ? "成功" : "失败")} gateway={outcome.GatewayId} pn={outcome.Pn} " +
+                $"mac={(string.IsNullOrWhiteSpace(outcome.DeviceMac) ? "无" : "有")} " +
+                $"seq={(outcome.Seq?.ToString() ?? "-")} 耗时={outcome.ElapsedMs}ms " +
+                $"原因={(outcome.Success ? "-" : outcome.Message)}");
 
             if (outcome.Success)
             {
@@ -544,6 +566,9 @@ public partial class ScanViewModel : ObservableObject
 
                 if (outcome.CanForce)
                 {
+                    // 确认弹窗会盖住页面，先把结果条收起，避免确认后残留一条"发送失败"
+                    HideResult();
+
                     var page = Application.Current?.Windows.FirstOrDefault()?.Page;
                     if (page is not null)
                     {
@@ -559,9 +584,10 @@ public partial class ScanViewModel : ObservableObject
         catch (Exception ex)
         {
             await _logService.WriteAsync("提交流程异常", ex);
-            ResultText = $"提交异常：{ex.Message}";
+            ResultText = "发送失败";
             ResultColor = Color.FromArgb("#A32D2D");
             ResultVisible = true;
+            ScheduleResultAutoHide(success: false);
             StatusText = "提交异常";
             StatusColor = Color.FromArgb("#A32D2D");
         }
@@ -572,35 +598,48 @@ public partial class ScanViewModel : ObservableObject
         }
     }
 
-    private static string BuildResultDetail(SubmitOutcome outcome)
+    /// <summary>
+    /// 结果条只给三态结论。失败原因与诊断细节（Seq、耗时、MAC、蓝牙、回执原文）只写日志，
+    /// 界面保持一行，浮层才不会越撑越高挡住相机预览。
+    /// </summary>
+    private static string BuildResultText(SubmitOutcome outcome)
     {
-        var parts = new List<string>();
+        if (!outcome.Success) return "发送失败";
 
-        if (outcome.Seq is long seq) parts.Add($"Seq {seq}");
-        if (outcome.ElapsedMs > 0) parts.Add($"耗时 {outcome.ElapsedMs}ms");
+        return string.IsNullOrWhiteSpace(outcome.DeviceMac)
+            ? "发送成功（无 MAC 地址）"
+            : "发送成功（带 MAC 地址）";
+    }
 
-        if (!string.IsNullOrWhiteSpace(outcome.DeviceMac))
+    /// <summary>
+    /// 成功提示停留 4 秒后自动消失，避免浮层长期压住预览；失败提示保留到下次提交或清空。
+    /// 用代际令牌作废旧延时，防止它把新一次提交的结果条误隐藏。
+    /// </summary>
+    private void ScheduleResultAutoHide(bool success)
+    {
+        var generation = ++_resultGeneration;
+        if (!success) return;
+
+        _ = Task.Run(async () =>
         {
-            var mac = $"MAC {outcome.DeviceMac}";
-            if (outcome.BleFromCache) mac += "（缓存）";
-            else if (outcome.BleRssi != 0) mac += $" {outcome.BleRssi}dBm";
+            await Task.Delay(4000);
+            if (generation != _resultGeneration) return;
 
-            if (outcome.BleDeviceCount > 1) mac += $" 同名{outcome.BleDeviceCount}台取最强";
-            parts.Add(mac);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                // 回到 UI 线程再确认一次：延时期间可能已有新提交或用户清空
+                if (generation != _resultGeneration) return;
+                HideResult();
+            });
+        });
+    }
 
-            if (outcome.BleElapsedMs > 0) parts.Add($"蓝牙 {outcome.BleElapsedMs}ms");
-        }
-        else if (!string.IsNullOrWhiteSpace(outcome.BleNote))
-        {
-            parts.Add($"未扫到蓝牙（{outcome.BleNote}）");
-        }
-
-        if (!string.IsNullOrWhiteSpace(outcome.ServerMessage)) parts.Add($"网关：{outcome.ServerMessage}");
-
-        var head = string.Join(" · ", parts);
-        if (string.IsNullOrWhiteSpace(outcome.Detail)) return head;
-
-        return string.IsNullOrEmpty(head) ? outcome.Detail : $"{head}\n响应：{outcome.Detail}";
+    private void HideResult()
+    {
+        // 自增即作废所有在途的自动隐藏任务
+        _resultGeneration++;
+        ResultVisible = false;
+        ResultText = null;
     }
 
     private void ApplyOnlineStatus(OnlineCheckStatus status)
